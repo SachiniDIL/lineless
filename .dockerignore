@@ -1,0 +1,46 @@
+
+# Git
+.git/
+.gitignore
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Java build output
+**/target/
+**/build/
+**/*.class
+
+# Node.js / Next.js
+**/node_modules/
+**/.next/
+**/out/
+**/dist/
+**/coverage/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# Logs
+**/*.log
+logs/
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Documentation
+docs/
+
+# Local database data
+postgres-data/
+redis-data/
+kafka-data/
+
+# Temporary files
+*.tmp
+*.swp

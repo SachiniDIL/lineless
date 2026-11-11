@@ -1,0 +1,306 @@
+
+name: lineless
+
+services:
+
+  # ==========================================
+  # POSTGRESQL
+  # ==========================================
+
+  postgres:
+    image: postgres:17
+    container_name: lineless-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lineless}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-lineless}
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-lineless} -d ${POSTGRES_DB:-lineless}"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - lineless-network
+
+
+  # ==========================================
+  # REDIS
+  # ==========================================
+
+  redis:
+    image: redis:7
+    container_name: lineless-redis
+    restart: unless-stopped
+
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-devredispassword}
+      --appendonly yes
+
+    ports:
+      - "6379:6379"
+
+    volumes:
+      - redis_data:/data
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "-a",
+          "${REDIS_PASSWORD:-devredispassword}",
+          "ping"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - lineless-network
+
+
+  # ==========================================
+  # KAFKA
+  # ==========================================
+
+  kafka:
+    image: apache/kafka:4.1.0
+    container_name: lineless-kafka
+    restart: unless-stopped
+
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:?Set KAFKA_CLUSTER_ID in .env}
+
+    ports:
+      - "9092:9092"
+
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+    networks:
+      - lineless-network
+
+
+  # ==========================================
+  # AUTH SERVICE
+  # ==========================================
+
+  auth-service:
+    build:
+      context: ./backend/auth-service
+      dockerfile: Dockerfile
+
+    container_name: lineless-auth-service
+    restart: unless-stopped
+
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-lineless}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+
+      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH:-/run/secrets/jwt-private.pem}
+
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+
+    ports:
+      - "8083:8083"
+
+    volumes:
+      - ./infrastructure/secrets/jwt-private.pem:/run/secrets/jwt-private.pem:ro
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - lineless-network
+
+
+  # ==========================================
+  # QUEUE SERVICE
+  # ==========================================
+
+  queue-service:
+    build:
+      context: ./backend/queue-service
+      dockerfile: Dockerfile
+
+    container_name: lineless-queue-service
+    restart: unless-stopped
+
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/queue_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-lineless}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-devredispassword}
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH:-/run/secrets/jwt-public.pem}
+
+    ports:
+      - "8081:8081"
+
+    volumes:
+      - ./infrastructure/secrets/jwt-public.pem:/run/secrets/jwt-public.pem:ro
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+    networks:
+      - lineless-network
+
+
+  # ==========================================
+  # NOTIFICATION SERVICE
+  # ==========================================
+
+  notification-service:
+    build:
+      context: ./backend/notification-service
+      dockerfile: Dockerfile
+
+    container_name: lineless-notification-service
+    restart: unless-stopped
+
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+
+    depends_on:
+      kafka:
+        condition: service_started
+
+    networks:
+      - lineless-network
+
+
+  # ==========================================
+  # API GATEWAY
+  # ==========================================
+
+  api-gateway:
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+
+    container_name: lineless-api-gateway
+    restart: unless-stopped
+
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+
+      AUTH_SERVICE_URL: http://auth-service:8083
+      QUEUE_SERVICE_URL: http://queue-service:8081
+
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH:-/run/secrets/jwt-public.pem}
+
+    ports:
+      - "8080:8080"
+
+    volumes:
+      - ./infrastructure/secrets/jwt-public.pem:/run/secrets/jwt-public.pem:ro
+
+    depends_on:
+      - auth-service
+      - queue-service
+
+    networks:
+      - lineless-network
+
+
+  # ==========================================
+  # FRONTEND
+  # ==========================================
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+
+    container_name: lineless-frontend
+    restart: unless-stopped
+
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+
+    ports:
+      - "3000:3000"
+
+    depends_on:
+      - api-gateway
+
+    networks:
+      - lineless-network
+
+
+# ==========================================
+# VOLUMES
+# ==========================================
+
+volumes:
+  postgres_data:
+  redis_data:
+  kafka_data:
+
+
+# ==========================================
+# NETWORKS
+# ==========================================
+
+networks:
+  lineless-network:
+    driver: bridge

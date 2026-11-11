@@ -1,0 +1,58 @@
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# JWT keys and certificates
+*.pem
+*.key
+*.p12
+*.jks
+*.crt
+
+# Java / Maven
+target/
+build/
+*.class
+*.jar
+*.war
+.mvn/wrapper/maven-wrapper.jar
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+dist/
+coverage/
+.turbo/
+
+# Logs
+*.log
+logs/
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+.classpath
+.project
+.settings/
+
+# Operating system
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker volumes and local data
+postgres-data/
+redis-data/
+kafka-data/
+
+# Temporary files
+*.tmp
+*.swp
+*.bak
+
+# Test reports
+surefire-reports/

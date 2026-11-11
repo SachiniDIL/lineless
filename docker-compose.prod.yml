@@ -1,0 +1,68 @@
+
+services:
+
+  # ==========================================
+  # POSTGRESQL
+  # ==========================================
+
+  postgres:
+    ports: []
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Production database password required}
+
+
+  # ==========================================
+  # REDIS
+  # ==========================================
+
+  redis:
+    ports: []
+
+    restart: unless-stopped
+
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:?Production Redis password required}
+      --appendonly yes
+
+
+  # ==========================================
+  # KAFKA
+  # ==========================================
+
+  kafka:
+    ports: []
+
+    restart: unless-stopped
+
+  auth-service:
+    ports: []
+
+    restart: unless-stopped
+
+  queue-service:
+    ports: []
+
+    restart: unless-stopped
+
+  notification-service:
+    ports: []
+
+    restart: unless-stopped
+
+  api-gateway:
+    ports: []
+
+    restart: unless-stopped
+
+  
+  frontend:
+    ports: []
+
+    restart: unless-stopped
+
+  
+  
