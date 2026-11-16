@@ -1,4 +1,3 @@
-
 package com.lineless.auth_service.entity;
 
 import java.time.OffsetDateTime;
