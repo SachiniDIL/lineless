@@ -19,7 +19,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleEmailAlreadyExists(
             EmailAlreadyExistsException exception,
             HttpServletRequest request) {
-        return buildResponse(HttpStatus.CONFLICT, exception.getMessage());
+        return buildResponse(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidCredentials(
+            InvalidCredentialsException exception,
+            HttpServletRequest request) {
+        return buildResponse(HttpStatus.UNAUTHORIZED, exception.getMessage(), request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -33,12 +40,13 @@ public class GlobalExceptionHandler {
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .orElse("Request validation failed");
 
-        return buildResponse(HttpStatus.BAD_REQUEST, message);
+        return buildResponse(HttpStatus.BAD_REQUEST, message, request);
     }
 
     private ResponseEntity<ApiErrorResponse> buildResponse(
             HttpStatus status,
-            String message) {
+            String message,
+            HttpServletRequest request) {
         ApiErrorResponse response = new ApiErrorResponse(
                 Instant.now(),
                 status.value(),
