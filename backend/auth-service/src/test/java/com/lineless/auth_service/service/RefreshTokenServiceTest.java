@@ -1,11 +1,8 @@
 package com.lineless.auth_service.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.*;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -152,6 +149,70 @@ class RefreshTokenServiceTest {
 
         assertThatThrownBy(() -> refreshTokenService.rotateRefreshToken("expired-token"))
                 .isInstanceOf(InvalidRefreshTokenException.class);
+    }
+
+
+    @Test
+    void revokesActiveRefreshToken() {
+        User user = activeUser();
+        RefreshToken token = refreshToken(
+                UUID.randomUUID(),
+                user,
+                "active-token",
+                UUID.randomUUID(),
+                OffsetDateTime.now().plusMinutes(10)
+        );
+
+        when(refreshTokenRepository.findByTokenHashForUpdate(
+                sha256Unchecked("active-token")
+        )).thenReturn(Optional.of(token));
+
+        refreshTokenService.revokeRefreshToken("active-token");
+
+        assertThat(token.getRevokedAt()).isNotNull();
+
+        verify(refreshTokenRepository).save(token);
+    }
+
+    @Test
+    void doesNotThrowWhenRefreshTokenDoesNotExist() {
+        when(refreshTokenRepository.findByTokenHashForUpdate(
+                sha256Unchecked("unknown-token")
+        )).thenReturn(Optional.empty());
+
+        assertThatCode(() ->
+                refreshTokenService.revokeRefreshToken("unknown-token")
+        ).doesNotThrowAnyException();
+
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void doesNotChangeAlreadyRevokedRefreshToken() {
+        User user = activeUser();
+
+        OffsetDateTime originalRevocationTime =
+                OffsetDateTime.now().minusMinutes(5);
+
+        RefreshToken token = refreshToken(
+                UUID.randomUUID(),
+                user,
+                "revoked-token",
+                UUID.randomUUID(),
+                OffsetDateTime.now().plusMinutes(10)
+        );
+
+        token.setRevokedAt(originalRevocationTime);
+
+        when(refreshTokenRepository.findByTokenHashForUpdate(
+                sha256Unchecked("revoked-token")
+        )).thenReturn(Optional.of(token));
+
+        refreshTokenService.revokeRefreshToken("revoked-token");
+
+        assertThat(token.getRevokedAt()).isEqualTo(originalRevocationTime);
+
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
     }
 
     private User activeUser() {

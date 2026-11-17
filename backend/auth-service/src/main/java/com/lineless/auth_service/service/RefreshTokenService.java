@@ -133,6 +133,25 @@ public class RefreshTokenService {
         return newRawToken;
     }
 
+    @Transactional
+    public void revokeRefreshToken(String rawToken) {
+
+        if (rawToken == null || rawToken.isBlank()) {
+            return;
+        }
+
+        String tokenHash = hashToken(rawToken);
+
+        refreshTokenRepository.findByTokenHashForUpdate(tokenHash)
+                .ifPresent(refreshToken -> {
+
+                    if (refreshToken.getRevokedAt() == null) {
+                        refreshToken.setRevokedAt(OffsetDateTime.now());
+                        refreshTokenRepository.save(refreshToken);
+                    }
+                });
+    }
+
     private String hashToken(String token) {
 
         try {

@@ -280,6 +280,47 @@ class RefreshTokenIntegrationTest {
         }
     }
 
+
+    @Test
+    void shouldRevokeOnlyTheSpecifiedRefreshTokenOnLogout() {
+        // Arrange: Create a user
+        User user = new User();
+        user.setName("Logout Test User");
+        user.setEmail("logout@example.com");
+        user.setPasswordHash("test-hash");
+        user.setRole(UserRole.USER);
+        user.setStatus(UserStatus.ACTIVE);
+
+        User savedUser = userRepository.save(user);
+
+        // Create two independent refresh-token sessions
+        String firstToken =
+                refreshTokenService.createRefreshToken(savedUser);
+
+        String secondToken =
+                refreshTokenService.createRefreshToken(savedUser);
+
+        // Act: Log out using the first token
+        refreshTokenService.revokeRefreshToken(firstToken);
+
+        // Ensure changes are written to PostgreSQL
+        entityManager.flush();
+        entityManager.clear();
+
+        // Retrieve both tokens from PostgreSQL
+        RefreshToken firstRefreshToken = refreshTokenRepository
+                .findByTokenHash(hashToken(firstToken))
+                .orElseThrow();
+
+        RefreshToken secondRefreshToken = refreshTokenRepository
+                .findByTokenHash(hashToken(secondToken))
+                .orElseThrow();
+
+        // Assert: Only the first token should be revoked
+        assertThat(firstRefreshToken.getRevokedAt()).isNotNull();
+        assertThat(secondRefreshToken.getRevokedAt()).isNull();
+    }
+
     private String hashToken(String token) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
