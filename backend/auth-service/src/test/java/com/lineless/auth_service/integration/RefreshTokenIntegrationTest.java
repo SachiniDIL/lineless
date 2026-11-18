@@ -111,7 +111,9 @@ class RefreshTokenIntegrationTest {
         String originalToken = refreshTokenService.createRefreshToken(savedUser);
 
         // Act: Rotate the original token
-        String newToken = refreshTokenService.rotateRefreshToken(originalToken);
+        String newToken = refreshTokenService
+                .rotateRefreshToken(originalToken)
+                .refreshToken();
 
         // Retrieve both tokens from PostgreSQL using their hashes
         RefreshToken oldToken = refreshTokenRepository
@@ -154,7 +156,9 @@ class RefreshTokenIntegrationTest {
 
         // Rotate it once
         String replacementToken =
-                refreshTokenService.rotateRefreshToken(originalToken);
+                refreshTokenService
+                        .rotateRefreshToken(originalToken)
+                        .refreshToken();
 
         // Act: Try to reuse the old token
         assertThatThrownBy(() ->
@@ -338,7 +342,9 @@ class RefreshTokenIntegrationTest {
 
     private String rotateOrDetectReuse(String token) {
         try {
-            return refreshTokenService.rotateRefreshToken(token);
+            return refreshTokenService
+                    .rotateRefreshToken(token)
+                    .refreshToken();
         } catch (RefreshTokenReuseException exception) {
             return "REUSE_DETECTED";
         }

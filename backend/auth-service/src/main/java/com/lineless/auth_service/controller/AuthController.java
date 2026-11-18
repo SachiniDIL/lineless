@@ -119,6 +119,54 @@ public class AuthController {
                 .body(response);
     }
 
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(
+            HttpServletRequest request) {
+
+        String rawRefreshToken = null;
+
+        // Read the refresh token from the HttpOnly cookie.
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if (refreshCookieName.equals(cookie.getName())) {
+                    rawRefreshToken = cookie.getValue();
+                    break;
+                }
+            }
+        }
+
+        // Rotate the refresh token and retrieve its owner.
+        var refreshResult =
+                refreshTokenService.rotateRefreshToken(rawRefreshToken);
+
+        var user = refreshResult.user();
+
+        // Generate a new access token.
+        String accessToken = jwtService.generateAccessToken(user);
+
+        AuthResponse response = new AuthResponse(
+                accessToken,
+                "Bearer",
+                jwtService.getAccessTokenExpiration(),
+                new UserResponse(
+                        user.getId(),
+                        user.getName(),
+                        user.getEmail(),
+                        user.getRole().name()
+                )
+        );
+
+        // Send the replacement refresh token as an HttpOnly cookie.
+        HttpHeaders headers = new HttpHeaders();
+        refreshTokenCookieService.addRefreshTokenCookie(
+                headers,
+                refreshResult.refreshToken()
+        );
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(response);
+    }
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest request) {

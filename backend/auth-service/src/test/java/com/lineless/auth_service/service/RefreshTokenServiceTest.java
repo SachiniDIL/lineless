@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import com.lineless.auth_service.entity.RefreshToken;
 import com.lineless.auth_service.entity.User;
 import com.lineless.auth_service.entity.UserStatus;
+import com.lineless.auth_service.dto.response.RefreshTokenResult;
 import com.lineless.auth_service.exception.InvalidRefreshTokenException;
 import com.lineless.auth_service.exception.RefreshTokenReuseException;
 import com.lineless.auth_service.repository.RefreshTokenRepository;
@@ -105,15 +106,18 @@ class RefreshTokenServiceTest {
         when(refreshTokenRepository.findByTokenHashForUpdate(sha256Unchecked("old-token")))
                 .thenReturn(Optional.of(oldToken));
 
-        String newRawToken = refreshTokenService.rotateRefreshToken("old-token");
+        RefreshTokenResult rotation =
+                refreshTokenService.rotateRefreshToken("old-token");
+        String newRawToken = rotation.refreshToken();
 
         assertThat(newRawToken).isNotBlank().isNotEqualTo("old-token");
+        assertThat(rotation.user()).isSameAs(user);
         assertThat(oldToken.getRevokedAt()).isNotNull();
         assertThat(oldToken.getReplacedBy()).isNotNull();
 
         ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
         verify(refreshTokenRepository, times(2)).save(captor.capture());
-        RefreshToken newToken = captor.getAllValues().get(0);
+        RefreshToken newToken = captor.getAllValues().getFirst();
         assertThat(newToken.getFamilyId()).isEqualTo(familyId);
         assertThat(newToken.getTokenHash()).isEqualTo(sha256Unchecked(newRawToken));
         assertThat(oldToken.getReplacedBy()).isEqualTo(newToken.getId());

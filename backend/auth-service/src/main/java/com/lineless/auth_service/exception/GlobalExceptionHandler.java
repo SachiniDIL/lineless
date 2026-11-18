@@ -68,6 +68,18 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(RefreshTokenReuseException.class)
+    public ResponseEntity<ApiErrorResponse> handleRefreshTokenReuse(
+            RefreshTokenReuseException exception,
+            HttpServletRequest request) {
+
+        return buildResponse(
+                HttpStatus.UNAUTHORIZED,
+                exception.getMessage(),
+                request
+        );
+    }
+
     private ResponseEntity<ApiErrorResponse> buildResponse(
             HttpStatus status,
             String message,

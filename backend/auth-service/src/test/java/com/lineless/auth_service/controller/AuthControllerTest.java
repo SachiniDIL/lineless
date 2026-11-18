@@ -1,8 +1,12 @@
 package com.lineless.auth_service.controller;
 
+import com.lineless.auth_service.dto.response.RefreshTokenResult;
 import com.lineless.auth_service.entity.User;
 import com.lineless.auth_service.entity.UserRole;
+import com.lineless.auth_service.entity.UserStatus;
 import com.lineless.auth_service.exception.InvalidGoogleTokenException;
+import com.lineless.auth_service.exception.InvalidRefreshTokenException;
+import com.lineless.auth_service.exception.RefreshTokenReuseException;
 import com.lineless.auth_service.service.*;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
@@ -194,4 +198,104 @@ class AuthControllerTest {
         verifyNoInteractions(googleAuthenticationService);
     }
 
+    @Test
+    void shouldRefreshTokensSuccessfully() throws Exception {
+
+        User user = new User();
+        user.setId(UUID.randomUUID());
+        user.setName("Test User");
+        user.setEmail("test@example.com");
+        user.setRole(UserRole.USER);
+        user.setStatus(UserStatus.ACTIVE);
+
+        RefreshTokenResult refreshResult = new RefreshTokenResult(
+                "new-refresh-token",
+                user
+        );
+
+        when(refreshTokenService.rotateRefreshToken("old-refresh-token"))
+                .thenReturn(refreshResult);
+
+        when(jwtService.generateAccessToken(user))
+                .thenReturn("new-access-token");
+
+        when(jwtService.getAccessTokenExpiration())
+                .thenReturn(900L);
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(new Cookie("lineless_refresh", "old-refresh-token")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("new-access-token"))
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn").value(900))
+                .andExpect(jsonPath("$.user.email").value("test@example.com"))
+                .andExpect(jsonPath("$.user.role").value("USER"))
+                .andExpect(jsonPath("$.refreshToken").doesNotExist());
+
+        verify(refreshTokenService).rotateRefreshToken("old-refresh-token");
+
+        verify(refreshTokenCookieService).addRefreshTokenCookie(
+                any(HttpHeaders.class),
+                eq("new-refresh-token")
+        );
+    }
+
+    @Test
+    void shouldRejectRefreshWhenCookieIsMissing() throws Exception {
+
+        when(refreshTokenService.rotateRefreshToken(null))
+                .thenThrow(new InvalidRefreshTokenException(
+                        "Invalid refresh token"
+                ));
+
+        mockMvc.perform(post("/api/auth/refresh"))
+                .andExpect(status().isUnauthorized());
+
+        verify(refreshTokenService).rotateRefreshToken(null);
+
+        verify(jwtService, never()).generateAccessToken(any());
+
+        verify(refreshTokenCookieService, never())
+                .addRefreshTokenCookie(any(HttpHeaders.class), anyString());
+    }
+
+    @Test
+    void shouldRejectInvalidRefreshToken() throws Exception {
+
+        when(refreshTokenService.rotateRefreshToken("invalid-token"))
+                .thenThrow(new InvalidRefreshTokenException(
+                        "Invalid refresh token"
+                ));
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(new Cookie("lineless_refresh", "invalid-token")))
+                .andExpect(status().isUnauthorized());
+
+        verify(refreshTokenService).rotateRefreshToken("invalid-token");
+
+        verify(jwtService, never()).generateAccessToken(any());
+
+        verify(refreshTokenCookieService, never())
+                .addRefreshTokenCookie(any(HttpHeaders.class), anyString());
+    }
+
+    @Test
+    void shouldRejectReusedRefreshToken() throws Exception {
+
+        when(refreshTokenService.rotateRefreshToken("reused-token"))
+                .thenThrow(new RefreshTokenReuseException(
+                        "Refresh token reuse detected"
+                ));
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(new Cookie("lineless_refresh", "reused-token")))
+                .andExpect(status().isUnauthorized());
+
+        verify(refreshTokenService).rotateRefreshToken("reused-token");
+
+        verify(jwtService, never()).generateAccessToken(any());
+
+        verify(refreshTokenCookieService, never())
+                .addRefreshTokenCookie(any(HttpHeaders.class), anyString());
+    }
 }

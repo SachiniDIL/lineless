@@ -7,6 +7,7 @@ import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.UUID;
 
+import com.lineless.auth_service.dto.response.RefreshTokenResult;
 import com.lineless.auth_service.entity.UserStatus;
 import com.lineless.auth_service.exception.RefreshTokenReuseException;
 import org.springframework.beans.factory.annotation.Value;
@@ -60,7 +61,7 @@ public class RefreshTokenService {
             RefreshTokenReuseException.class,
             InvalidRefreshTokenException.class
     })
-    public String rotateRefreshToken(String rawToken) {
+    public RefreshTokenResult rotateRefreshToken(String rawToken) {
 
         if (rawToken == null || rawToken.isBlank()) {
             throw new InvalidRefreshTokenException(
@@ -130,7 +131,10 @@ public class RefreshTokenService {
 
         refreshTokenRepository.save(existingToken);
 
-        return newRawToken;
+        return new RefreshTokenResult(
+                newRawToken,
+                existingToken.getUser()
+        );
     }
 
     @Transactional
