@@ -1,5 +1,7 @@
 package com.lineless.auth_service.service;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Locale;
 
 import org.springframework.stereotype.Service;
@@ -47,6 +49,8 @@ public class GoogleAuthenticationService {
                 throw new InvalidCredentialsException();
             }
 
+            markEmailAsVerified(user);
+
             return user;
         }
 
@@ -62,7 +66,10 @@ public class GoogleAuthenticationService {
             throw new InvalidCredentialsException();
         }
 
-        // Step 4: Prevent replacing an already-linked Google identity.
+        // Step 4: Mark the Google-verified email as verified.
+        markEmailAsVerified(user);
+
+        // Step 5: Prevent replacing an already-linked Google identity.
         boolean alreadyHasGoogleIdentity =
                 userIdentityRepository.existsByUser_IdAndProvider(
                         user.getId(),
@@ -75,7 +82,7 @@ public class GoogleAuthenticationService {
             );
         }
 
-        // Step 5: Link this Google identity to the LineLess user.
+        // Step 6: Link this Google identity to the LineLess user.
         linkGoogleIdentity(user, googleUser.googleSubject());
 
         return user;
@@ -93,7 +100,18 @@ public class GoogleAuthenticationService {
         user.setRole(UserRole.USER);
         user.setStatus(UserStatus.ACTIVE);
 
+        markEmailAsVerified(user);
+
         return userRepository.save(user);
+    }
+
+    private void markEmailAsVerified(User user) {
+
+        // Preserve the original verification timestamp.
+        if (!user.isEmailVerified()) {
+            user.setEmailVerified(true);
+            user.setEmailVerifiedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        }
     }
 
     private void linkGoogleIdentity(User user, String googleSubject) {

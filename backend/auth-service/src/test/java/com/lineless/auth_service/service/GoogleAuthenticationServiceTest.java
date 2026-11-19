@@ -25,6 +25,9 @@ import com.lineless.auth_service.exception.InvalidCredentialsException;
 import com.lineless.auth_service.repository.UserIdentityRepository;
 import com.lineless.auth_service.repository.UserRepository;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+
 @ExtendWith(MockitoExtension.class)
 class GoogleAuthenticationServiceTest {
 
@@ -73,6 +76,8 @@ class GoogleAuthenticationServiceTest {
         User result = googleAuthenticationService.authenticate("valid-token");
 
         assertThat(result).isSameAs(user);
+        assertThat(result.isEmailVerified()).isTrue();
+        assertThat(result.getEmailVerifiedAt()).isNotNull();
 
         verify(userRepository, never()).findByEmail(any());
         verify(userIdentityRepository, never()).save(any());
@@ -82,6 +87,9 @@ class GoogleAuthenticationServiceTest {
     void shouldLinkGoogleIdentityToExistingEmailAccount() {
 
         User existingUser = createUser(UserStatus.ACTIVE);
+
+        existingUser.setEmailVerified(false);
+        existingUser.setEmailVerifiedAt(null);
 
         when(userIdentityRepository.findByProviderAndProviderSubject(
                 IdentityProvider.GOOGLE,
@@ -110,6 +118,8 @@ class GoogleAuthenticationServiceTest {
         assertThat(savedIdentity.getUser()).isSameAs(existingUser);
         assertThat(savedIdentity.getProvider()).isEqualTo(IdentityProvider.GOOGLE);
         assertThat(savedIdentity.getProviderSubject()).isEqualTo("google-sub-123");
+        assertThat(result.isEmailVerified()).isTrue();
+        assertThat(result.getEmailVerifiedAt()).isNotNull();
 
         verify(userRepository, never()).save(any());
     }
@@ -139,6 +149,8 @@ class GoogleAuthenticationServiceTest {
         assertThat(result.getPasswordHash()).isNull();
         assertThat(result.getRole()).isEqualTo(UserRole.USER);
         assertThat(result.getStatus()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(result.isEmailVerified()).isTrue();
+        assertThat(result.getEmailVerifiedAt()).isNotNull();
 
         verify(userRepository).save(any(User.class));
         verify(userIdentityRepository).save(any(UserIdentity.class));
@@ -188,6 +200,36 @@ class GoogleAuthenticationServiceTest {
                 .hasMessage("This account is already linked to another Google account");
 
         verify(userIdentityRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldPreserveExistingEmailVerificationTimestamp() {
+
+        User user = createUser(UserStatus.ACTIVE);
+
+        OffsetDateTime originalVerificationTime =
+                OffsetDateTime.of(
+                        2026, 10, 10,
+                        10, 30, 0, 0,
+                        ZoneOffset.UTC
+                );
+
+        user.setEmailVerified(true);
+        user.setEmailVerifiedAt(originalVerificationTime);
+
+        UserIdentity identity = new UserIdentity();
+        identity.setUser(user);
+
+        when(userIdentityRepository.findByProviderAndProviderSubject(
+                IdentityProvider.GOOGLE,
+                "google-sub-123"
+        )).thenReturn(Optional.of(identity));
+
+        User result = googleAuthenticationService.authenticate("valid-token");
+
+        assertThat(result.isEmailVerified()).isTrue();
+        assertThat(result.getEmailVerifiedAt())
+                .isEqualTo(originalVerificationTime);
     }
 
     private User createUser(UserStatus status) {

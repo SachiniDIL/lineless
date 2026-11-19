@@ -2,6 +2,7 @@ package com.lineless.auth_service.service;
 
 import java.util.Locale;
 
+import com.lineless.auth_service.exception.EmailNotVerifiedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,13 +30,9 @@ public class LoginService {
                 .toLowerCase(Locale.ROOT);
 
         User user = userRepository.findByEmail(normalizedEmail)
-                .orElseThrow(InvalidCredentialsException::new
-                );
+                .orElseThrow(InvalidCredentialsException::new);
 
-        if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new InvalidCredentialsException();
-        }
-
+        // First, validate the password.
         if (user.getPasswordHash() == null ||
                 !passwordEncoder.matches(
                         request.password(),
@@ -43,6 +40,16 @@ public class LoginService {
                 )) {
 
             throw new InvalidCredentialsException();
+        }
+
+        // Check whether the account is active.
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new InvalidCredentialsException();
+        }
+
+        // Check whether the email has been verified.
+        if (!user.isEmailVerified()) {
+            throw new EmailNotVerifiedException();
         }
 
         return user;

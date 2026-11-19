@@ -23,12 +23,12 @@ import lombok.RequiredArgsConstructor;
 @Validated
 public class AuthController {
 
-    private final RegistrationService registrationService;
     private final LoginService loginService;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final RefreshTokenCookieService refreshTokenCookieService;
     private final GoogleAuthenticationService googleAuthenticationService;
+    private final RegistrationWorkflowService registrationWorkflowService;
 
     @Value("${app.auth.refresh-cookie.name}")
     private String refreshCookieName;
@@ -37,7 +37,7 @@ public class AuthController {
     public ResponseEntity<Void> register(
             @Valid @RequestBody RegisterRequest request) {
 
-        registrationService.register(request);
+        registrationWorkflowService.register(request);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)

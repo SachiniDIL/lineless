@@ -37,7 +37,7 @@ class AuthControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private RegistrationService registrationService;
+    private RegistrationWorkflowService registrationWorkflowService;
 
     @MockitoBean
     private LoginService loginService;
@@ -63,15 +63,15 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                    {
-                        "name": "Test User",
-                        "email": "test@example.com",
-                        "password": "Password123"
-                    }
-                    """))
+                {
+                    "name": "Test User",
+                    "email": "test@example.com",
+                    "password": "Password123"
+                }
+                """))
                 .andExpect(status().isCreated());
 
-        verify(registrationService).register(any());
+        verify(registrationWorkflowService).register(any());
     }
 
     @Test

@@ -39,6 +39,12 @@ public class User {
     @Column(name = "role", nullable = false, length = 20)
     private UserRole role = UserRole.USER;
 
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
+
+    @Column(name = "email_verified_at")
+    private OffsetDateTime emailVerifiedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

@@ -17,6 +17,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import com.lineless.auth_service.dto.request.LoginRequest;
 import com.lineless.auth_service.entity.User;
 import com.lineless.auth_service.entity.UserStatus;
+import com.lineless.auth_service.exception.EmailNotVerifiedException;
 import com.lineless.auth_service.exception.InvalidCredentialsException;
 import com.lineless.auth_service.repository.UserRepository;
 
@@ -26,7 +27,9 @@ class LoginServiceTest {
     @Mock
     private UserRepository userRepository;
 
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final BCryptPasswordEncoder passwordEncoder =
+            new BCryptPasswordEncoder();
+
     private LoginService loginService;
 
     @BeforeEach
@@ -35,8 +38,10 @@ class LoginServiceTest {
     }
 
     @Test
-    void logsInWithCorrectCredentials() {
+    void logsInWithCorrectCredentialsAndVerifiedEmail() {
+
         User user = activeUser();
+
         when(userRepository.findByEmail("jane@example.com"))
                 .thenReturn(Optional.of(user));
 
@@ -49,6 +54,7 @@ class LoginServiceTest {
 
     @Test
     void rejectsLoginWhenEmailDoesNotExist() {
+
         when(userRepository.findByEmail("missing@example.com"))
                 .thenReturn(Optional.empty());
 
@@ -59,7 +65,9 @@ class LoginServiceTest {
 
     @Test
     void rejectsLoginWhenPasswordIsIncorrect() {
+
         User user = activeUser();
+
         when(userRepository.findByEmail("jane@example.com"))
                 .thenReturn(Optional.of(user));
 
@@ -70,8 +78,38 @@ class LoginServiceTest {
 
     @Test
     void rejectsLoginWhenAccountIsInactive() {
+
         User user = activeUser();
         user.setStatus(UserStatus.INACTIVE);
+
+        when(userRepository.findByEmail("jane@example.com"))
+                .thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> loginService.login(
+                new LoginRequest("jane@example.com", "password123")))
+                .isInstanceOf(InvalidCredentialsException.class);
+    }
+
+    @Test
+    void rejectsLoginWhenEmailIsNotVerified() {
+
+        User user = activeUser();
+        user.setEmailVerified(false);
+
+        when(userRepository.findByEmail("jane@example.com"))
+                .thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> loginService.login(
+                new LoginRequest("jane@example.com", "password123")))
+                .isInstanceOf(EmailNotVerifiedException.class);
+    }
+
+    @Test
+    void rejectsLoginWhenUserHasNoPasswordHash() {
+
+        User user = activeUser();
+        user.setPasswordHash(null);
+
         when(userRepository.findByEmail("jane@example.com"))
                 .thenReturn(Optional.of(user));
 
@@ -81,11 +119,15 @@ class LoginServiceTest {
     }
 
     private User activeUser() {
+
         User user = new User();
+
         user.setName("Jane Smith");
         user.setEmail("jane@example.com");
         user.setPasswordHash(passwordEncoder.encode("password123"));
         user.setStatus(UserStatus.ACTIVE);
+        user.setEmailVerified(true);
+
         return user;
     }
 }
