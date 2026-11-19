@@ -1,13 +1,8 @@
 package com.lineless.auth_service.service;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.mockito.ArgumentMatchers.any;
-
+import com.lineless.auth_service.dto.request.RegisterRequest;
+import com.lineless.auth_service.entity.User;
+import com.lineless.auth_service.exception.RateLimitExceededException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,11 +10,13 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.lineless.auth_service.dto.request.RegisterRequest;
-import com.lineless.auth_service.entity.User;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RegistrationWorkflowServiceTest {
+
+    private static final String CLIENT_IP = "192.0.2.10";
 
     @Mock
     private RegistrationService registrationService;
@@ -30,6 +27,9 @@ class RegistrationWorkflowServiceTest {
     @Mock
     private EmailSenderService emailSenderService;
 
+    @Mock
+    private RegistrationRateLimitService registrationRateLimitService;
+
     private RegistrationWorkflowService registrationWorkflowService;
 
     @BeforeEach
@@ -37,60 +37,127 @@ class RegistrationWorkflowServiceTest {
         registrationWorkflowService = new RegistrationWorkflowService(
                 registrationService,
                 emailVerificationTokenService,
-                emailSenderService);
+                emailSenderService,
+                registrationRateLimitService
+        );
     }
 
     @Test
     void registersUserGeneratesVerificationTokenAndSendsEmail() {
+
         RegisterRequest request = request();
         User user = user();
         String verificationToken = "verification-token";
 
+        when(registrationRateLimitService.isAllowed(
+                "jane@example.com", CLIENT_IP
+        )).thenReturn(true);
+
         when(registrationService.register(request)).thenReturn(user);
+
         when(emailVerificationTokenService.createVerificationToken(user))
                 .thenReturn(verificationToken);
 
-        registrationWorkflowService.register(request);
+        registrationWorkflowService.register(request, CLIENT_IP);
 
         InOrder inOrder = inOrder(
+                registrationRateLimitService,
                 registrationService,
                 emailVerificationTokenService,
-                emailSenderService);
+                emailSenderService
+        );
+
+        inOrder.verify(registrationRateLimitService)
+                .isAllowed("jane@example.com", CLIENT_IP);
+
+        inOrder.verify(registrationRateLimitService)
+                .recordAttempt("jane@example.com", CLIENT_IP);
+
         inOrder.verify(registrationService).register(request);
+
         inOrder.verify(emailVerificationTokenService)
                 .createVerificationToken(user);
+
         inOrder.verify(emailSenderService).sendVerificationEmail(
                 "jane@example.com",
                 "Jane Smith",
-                verificationToken);
+                verificationToken
+        );
+    }
+
+    @Test
+    void rejectsRegistrationWhenRateLimitIsExceeded() {
+
+        RegisterRequest request = request();
+
+        when(registrationRateLimitService.isAllowed(
+                "jane@example.com", CLIENT_IP
+        )).thenReturn(false);
+
+        assertThatThrownBy(() ->
+                registrationWorkflowService.register(request, CLIENT_IP)
+        ).isInstanceOf(RateLimitExceededException.class);
+
+        verify(registrationRateLimitService, never())
+                .recordAttempt(anyString(), anyString());
+
+        verifyNoInteractions(
+                registrationService,
+                emailVerificationTokenService,
+                emailSenderService
+        );
     }
 
     @Test
     void stopsWorkflowWhenRegistrationFails() {
-        RegisterRequest request = request();
-        RuntimeException exception = new RuntimeException("registration failed");
-        when(registrationService.register(request)).thenThrow(exception);
 
-        assertThatThrownBy(() -> registrationWorkflowService.register(request))
-                .isSameAs(exception);
+        RegisterRequest request = request();
+
+        RuntimeException exception =
+                new RuntimeException("registration failed");
+
+        when(registrationRateLimitService.isAllowed(
+                "jane@example.com", CLIENT_IP
+        )).thenReturn(true);
+
+        when(registrationService.register(request))
+                .thenThrow(exception);
+
+        assertThatThrownBy(() ->
+                registrationWorkflowService.register(request, CLIENT_IP)
+        ).isSameAs(exception);
+
+        verify(registrationRateLimitService)
+                .recordAttempt("jane@example.com", CLIENT_IP);
 
         verify(emailVerificationTokenService, never())
                 .createVerificationToken(any(User.class));
+
         verify(emailSenderService, never())
                 .sendVerificationEmail(any(), any(), any());
     }
 
     @Test
     void stopsWorkflowWhenVerificationTokenGenerationFails() {
+
         RegisterRequest request = request();
         User user = user();
-        RuntimeException exception = new RuntimeException("token generation failed");
+
+        RuntimeException exception =
+                new RuntimeException("token generation failed");
+
+        when(registrationRateLimitService.isAllowed(
+                "jane@example.com", CLIENT_IP
+        )).thenReturn(true);
+
         when(registrationService.register(request)).thenReturn(user);
+
         when(emailVerificationTokenService.createVerificationToken(user))
                 .thenThrow(exception);
 
-        assertThatThrownBy(() -> registrationWorkflowService.register(request))
-                .isSameAs(exception);
+        assertThatThrownBy(() ->
+                registrationWorkflowService.register(request, CLIENT_IP)
+        ).isSameAs(exception);
 
         verify(emailSenderService, never())
                 .sendVerificationEmail(any(), any(), any());
@@ -98,25 +165,47 @@ class RegistrationWorkflowServiceTest {
 
     @Test
     void propagatesEmailSendingFailure() {
+
         RegisterRequest request = request();
         User user = user();
+
         String verificationToken = "verification-token";
-        RuntimeException exception = new RuntimeException("email sending failed");
+
+        RuntimeException exception =
+                new RuntimeException("email sending failed");
+
+        when(registrationRateLimitService.isAllowed(
+                "jane@example.com", CLIENT_IP
+        )).thenReturn(true);
+
         when(registrationService.register(request)).thenReturn(user);
+
         when(emailVerificationTokenService.createVerificationToken(user))
                 .thenReturn(verificationToken);
-        doThrow(exception).when(emailSenderService).sendVerificationEmail(
-                user.getEmail(), user.getName(), verificationToken);
 
-        assertThatThrownBy(() -> registrationWorkflowService.register(request))
-                .isSameAs(exception);
+        doThrow(exception).when(emailSenderService).sendVerificationEmail(
+                user.getEmail(),
+                user.getName(),
+                verificationToken
+        );
+
+        assertThatThrownBy(() ->
+                registrationWorkflowService.register(request, CLIENT_IP)
+        ).isSameAs(exception);
 
         verify(emailSenderService).sendVerificationEmail(
-                user.getEmail(), user.getName(), verificationToken);
+                user.getEmail(),
+                user.getName(),
+                verificationToken
+        );
     }
 
     private RegisterRequest request() {
-        return new RegisterRequest("Jane Smith", "jane@example.com", "password123");
+        return new RegisterRequest(
+                "Jane Smith",
+                "jane@example.com",
+                "password123"
+        );
     }
 
     private User user() {

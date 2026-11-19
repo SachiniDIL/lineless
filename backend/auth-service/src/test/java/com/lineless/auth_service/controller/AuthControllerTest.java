@@ -64,15 +64,20 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                {
-                    "name": "Test User",
-                    "email": "test@example.com",
-                    "password": "Password123"
-                }
-                """))
+                    {
+                        "name": "Test User",
+                        "email": "test@example.com",
+                        "password": "Password123"
+                    }
+                    """)
+                        .with(request -> {
+                            request.setRemoteAddr("192.0.2.10");
+                            return request;
+                        }))
                 .andExpect(status().isCreated());
 
-        verify(registrationWorkflowService).register(any());
+        verify(registrationWorkflowService)
+                .register(any(), eq("192.0.2.10"));
     }
 
     @Test
@@ -328,4 +333,30 @@ class AuthControllerTest {
         verifyNoInteractions(jwtService, refreshTokenService);
     }
 
+    @Test
+    void shouldReturnTooManyRequestsWhenRegistrationRateLimitIsExceeded()
+            throws Exception {
+
+        doThrow(new RateLimitExceededException())
+                .when(registrationWorkflowService)
+                .register(any(), anyString());
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                    {
+                        "name": "Test User",
+                        "email": "test@example.com",
+                        "password": "Password123"
+                    }
+                    """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.error").value("Too Many Requests"))
+                .andExpect(jsonPath("$.message")
+                        .value("Too many requests. Please try again later."));
+
+        verify(registrationWorkflowService)
+                .register(any(), anyString());
+    }
 }

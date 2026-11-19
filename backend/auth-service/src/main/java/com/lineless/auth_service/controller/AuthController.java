@@ -38,13 +38,15 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<Void> register(
-            @Valid @RequestBody RegisterRequest request) {
+            @Valid @RequestBody RegisterRequest request,
+            HttpServletRequest httpRequest) {
 
-        registrationWorkflowService.register(request);
+        registrationWorkflowService.register(
+                request,
+                httpRequest.getRemoteAddr()
+        );
 
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .build();
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
 
