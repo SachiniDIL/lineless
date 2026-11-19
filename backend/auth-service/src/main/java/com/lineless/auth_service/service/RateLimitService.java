@@ -1,3 +1,4 @@
+
 package com.lineless.auth_service.service;
 
 import io.github.bucket4j.Bucket;
@@ -14,7 +15,20 @@ public class RateLimitService {
 
     private final ProxyManager<String> proxyManager;
 
-    public boolean tryConsume(
+    public boolean tryConsume(String key, long capacity, Duration refillPeriod) {
+        return getBucket(key, capacity, refillPeriod).tryConsume(1);
+    }
+
+    public boolean isAllowed(String key, long capacity, Duration refillPeriod) {
+        return getBucket(key, capacity, refillPeriod)
+                .getAvailableTokens() > 0;
+    }
+
+    public void reset(String key, long capacity, Duration refillPeriod) {
+        getBucket(key, capacity, refillPeriod).reset();
+    }
+
+    private Bucket getBucket(
             String key,
             long capacity,
             Duration refillPeriod) {
@@ -25,11 +39,6 @@ public class RateLimitService {
                         .refillGreedy(capacity, refillPeriod))
                 .build();
 
-        Bucket bucket = proxyManager.getProxy(
-                key,
-                () -> configuration
-        );
-
-        return bucket.tryConsume(1);
+        return proxyManager.getProxy(key, () -> configuration);
     }
 }

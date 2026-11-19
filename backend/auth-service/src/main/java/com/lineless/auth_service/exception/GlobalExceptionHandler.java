@@ -1,17 +1,14 @@
 package com.lineless.auth_service.exception;
 
-import java.time.Instant;
-import java.util.Map;
-
+import com.lineless.auth_service.dto.response.ApiErrorResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.lineless.auth_service.dto.response.ApiErrorResponse;
-
-import jakarta.servlet.http.HttpServletRequest;
+import java.time.Instant;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -106,12 +103,15 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(RateLimitExceededException.class)
-    public ResponseEntity<Map<String, String>> handleRateLimitExceeded(
-            RateLimitExceededException exception) {
+    public ResponseEntity<ApiErrorResponse> handleRateLimitExceeded(
+            RateLimitExceededException exception,
+            HttpServletRequest request) {
 
-        return ResponseEntity
-                .status(HttpStatus.TOO_MANY_REQUESTS)
-                .body(Map.of("message", exception.getMessage()));
+        return buildResponse(
+                HttpStatus.TOO_MANY_REQUESTS,
+                exception.getMessage(),
+                request
+        );
     }
 
     private ResponseEntity<ApiErrorResponse> buildResponse(

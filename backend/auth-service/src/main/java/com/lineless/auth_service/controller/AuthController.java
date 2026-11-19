@@ -1,21 +1,24 @@
 package com.lineless.auth_service.controller;
 
 import com.lineless.auth_service.dto.request.GoogleLoginRequest;
+import com.lineless.auth_service.dto.request.LoginRequest;
+import com.lineless.auth_service.dto.request.RegisterRequest;
+import com.lineless.auth_service.dto.response.AuthResponse;
+import com.lineless.auth_service.dto.response.UserResponse;
 import com.lineless.auth_service.service.*;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
-import com.lineless.auth_service.dto.request.RegisterRequest;
-import com.lineless.auth_service.dto.request.LoginRequest;
-import com.lineless.auth_service.dto.response.AuthResponse;
-import com.lineless.auth_service.dto.response.UserResponse;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -47,14 +50,15 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(
-            @Valid @RequestBody LoginRequest request) {
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest) {
 
-        var user = loginService.login(request);
+        var user = loginService.login(
+                request,
+                httpRequest.getRemoteAddr()
+        );
 
-        // Generate application access token
         String accessToken = jwtService.generateAccessToken(user);
-
-        // Create and store refresh token
         String refreshToken = refreshTokenService.createRefreshToken(user);
 
         AuthResponse response = new AuthResponse(
@@ -69,13 +73,10 @@ public class AuthController {
                 )
         );
 
-        // Add refresh token as an HttpOnly cookie
-        var headers = new HttpHeaders();
+        HttpHeaders headers = new HttpHeaders();
         refreshTokenCookieService.addRefreshTokenCookie(headers, refreshToken);
 
-        return ResponseEntity.ok()
-                .headers(headers)
-                .body(response);
+        return ResponseEntity.ok().headers(headers).body(response);
     }
 
 

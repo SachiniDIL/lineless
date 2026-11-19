@@ -6,6 +6,7 @@ import com.lineless.auth_service.entity.UserRole;
 import com.lineless.auth_service.entity.UserStatus;
 import com.lineless.auth_service.exception.InvalidGoogleTokenException;
 import com.lineless.auth_service.exception.InvalidRefreshTokenException;
+import com.lineless.auth_service.exception.RateLimitExceededException;
 import com.lineless.auth_service.exception.RefreshTokenReuseException;
 import com.lineless.auth_service.service.*;
 import jakarta.servlet.http.Cookie;
@@ -83,7 +84,7 @@ class AuthControllerTest {
         user.setEmail("test@example.com");
         user.setRole(UserRole.USER);
 
-        when(loginService.login(any())).thenReturn(user);
+        when(loginService.login(any(), anyString())).thenReturn(user);
         when(jwtService.generateAccessToken(user)).thenReturn("test-access-token");
         when(jwtService.getAccessTokenExpiration()).thenReturn(900L);
         when(refreshTokenService.createRefreshToken(user))
@@ -302,4 +303,29 @@ class AuthControllerTest {
         verify(refreshTokenCookieService, never())
                 .addRefreshTokenCookie(any(HttpHeaders.class), anyString());
     }
+
+
+    @Test
+    void shouldReturnTooManyRequestsWhenLoginRateLimitIsExceeded() throws Exception {
+
+        when(loginService.login(any(), anyString()))
+                .thenThrow(new RateLimitExceededException());
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                    {
+                        "email": "test@example.com",
+                        "password": "Password123"
+                    }
+                    """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.error").value("Too Many Requests"))
+                .andExpect(jsonPath("$.message")
+                        .value("Too many requests. Please try again later."));
+
+        verifyNoInteractions(jwtService, refreshTokenService);
+    }
+
 }
