@@ -175,7 +175,8 @@ class AdminBootstrapRunnerTest {
         assertEquals("admin@lineless.local", savedUser.getEmail());
         assertEquals(UserRole.ADMIN, savedUser.getRole());
         assertEquals(UserStatus.ACTIVE, savedUser.getStatus());
-
+        assertTrue(savedUser.isEmailVerified());
+        assertNotNull(savedUser.getEmailVerifiedAt());
         assertTrue(
                 passwordEncoder.matches(
                         "StrongPassword123!",

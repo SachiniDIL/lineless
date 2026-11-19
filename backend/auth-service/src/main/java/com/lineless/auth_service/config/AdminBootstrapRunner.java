@@ -10,6 +10,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.Locale;
 
@@ -102,6 +104,10 @@ public class AdminBootstrapRunner implements CommandLineRunner {
         admin.setPasswordHash(passwordEncoder.encode(adminPassword));
         admin.setRole(UserRole.ADMIN);
         admin.setStatus(UserStatus.ACTIVE);
+
+        // Bootstrap admin email is trusted through server-side configuration.
+        admin.setEmailVerified(true);
+        admin.setEmailVerifiedAt(OffsetDateTime.now(ZoneOffset.UTC));
 
         userRepository.save(admin);
 
