@@ -114,7 +114,7 @@ class EmailVerificationControllerTest {
                 ));
 
         verify(resendVerificationService)
-                .resend("jane@example.com");
+                .resend(eq("jane@example.com"), anyString());
     }
 
     @Test
@@ -133,7 +133,7 @@ class EmailVerificationControllerTest {
                 ));
 
         verify(resendVerificationService)
-                .resend("unknown@example.com");
+                .resend(eq("unknown@example.com"), anyString());
     }
 
     @Test

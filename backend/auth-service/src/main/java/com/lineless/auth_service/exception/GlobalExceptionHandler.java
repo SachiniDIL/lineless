@@ -1,6 +1,7 @@
 package com.lineless.auth_service.exception;
 
 import java.time.Instant;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -102,6 +103,15 @@ public class GlobalExceptionHandler {
                 exception.getMessage(),
                 request
         );
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<Map<String, String>> handleRateLimitExceeded(
+            RateLimitExceededException exception) {
+
+        return ResponseEntity
+                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(Map.of("message", exception.getMessage()));
     }
 
     private ResponseEntity<ApiErrorResponse> buildResponse(

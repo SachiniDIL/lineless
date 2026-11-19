@@ -2,6 +2,7 @@ package com.lineless.auth_service.controller;
 
 import com.lineless.auth_service.dto.request.ResendVerificationRequest;
 import com.lineless.auth_service.service.ResendVerificationService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,15 +36,16 @@ public class EmailVerificationController {
 
     @PostMapping("/resend-verification")
     public ResponseEntity<Map<String, String>> resendVerification(
-            @Valid @RequestBody ResendVerificationRequest request) {
+            @Valid @RequestBody ResendVerificationRequest request,
+            HttpServletRequest httpRequest) {
 
-        resendVerificationService.resend(request.email());
+        String clientIp = httpRequest.getRemoteAddr();
 
-        return ResponseEntity.ok(
-                Map.of(
-                        "message",
-                        "If an unverified account exists with this email, a verification email has been sent."
-                )
-        );
+        resendVerificationService.resend(request.email(), clientIp);
+
+        return ResponseEntity.ok(Map.of(
+                "message",
+                "If an unverified account exists with this email, a verification email has been sent."
+        ));
     }
 }
