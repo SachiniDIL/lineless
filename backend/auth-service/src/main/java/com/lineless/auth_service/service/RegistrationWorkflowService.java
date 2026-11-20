@@ -4,11 +4,15 @@ import com.lineless.auth_service.dto.request.RegisterRequest;
 import com.lineless.auth_service.entity.User;
 import com.lineless.auth_service.exception.RateLimitExceededException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.mail.MailException;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class RegistrationWorkflowService {
 
@@ -22,7 +26,6 @@ public class RegistrationWorkflowService {
         String normalizedEmail =
                 request.email().trim().toLowerCase(Locale.ROOT);
 
-        // 1. Check whether registration attempts are allowed.
         boolean allowed = registrationRateLimitService.isAllowed(
                 normalizedEmail,
                 clientIp
@@ -32,24 +35,37 @@ public class RegistrationWorkflowService {
             throw new RateLimitExceededException();
         }
 
-        // 2. Record the attempt before processing registration.
         registrationRateLimitService.recordAttempt(
                 normalizedEmail,
                 clientIp
         );
 
-        // 3. Create and save the user.
-        User user = registrationService.register(request);
+        Optional<User> registrationResult =
+                registrationService.register(request);
 
-        // 4. Generate and save the verification token.
-        String rawToken = emailVerificationTokenService
-                .createVerificationToken(user);
+        // Email already exists. Do not reveal this to the caller.
+        if (registrationResult.isEmpty()) {
+            return;
+        }
 
-        // 5. Send the verification email.
-        emailSenderService.sendVerificationEmail(
-                user.getEmail(),
-                user.getName(),
-                rawToken
-        );
+        User user = registrationResult.get();
+
+        String rawToken =
+                emailVerificationTokenService.createVerificationToken(user);
+
+        try {
+            emailSenderService.sendVerificationEmail(
+                    user.getEmail(),
+                    user.getName(),
+                    rawToken
+            );
+        } catch (MailException exception) {
+
+            log.error(
+                    "Failed to send verification email for userId={}",
+                    user.getId(),
+                    exception
+            );
+        }
     }
 }

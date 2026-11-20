@@ -199,4 +199,45 @@ class ForgotPasswordServiceTest {
         verifyNoInteractions(userRepository);
         verifyNoInteractions(emailSenderService);
     }
+
+
+    @Test
+    void shouldNotExposeEmailFailureWhenSendingPasswordResetEmailFails() {
+
+        ForgotPasswordRequest request =
+                new ForgotPasswordRequest("test@example.com");
+
+        User user = activeUser;
+
+        when(passwordResetRateLimitService.isAllowed(
+                "test@example.com", "127.0.0.1"
+        )).thenReturn(true);
+
+        when(userRepository.findByEmail("test@example.com"))
+                .thenReturn(Optional.of(user));
+
+        when(passwordResetTokenService.createPasswordResetToken(user))
+                .thenReturn("raw-reset-token");
+
+        doThrow(new org.springframework.mail.MailSendException(
+                "Mail server unavailable"
+        )).when(emailSenderService).sendPasswordResetEmail(
+                anyString(),
+                anyString(),
+                anyString()
+        );
+
+        assertDoesNotThrow(() ->
+                forgotPasswordService.requestPasswordReset(
+                        request,
+                        "127.0.0.1"
+                )
+        );
+
+        verify(emailSenderService).sendPasswordResetEmail(
+                anyString(),
+                anyString(),
+                anyString()
+        );
+    }
 }

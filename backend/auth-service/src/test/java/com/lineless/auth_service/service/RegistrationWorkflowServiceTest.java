@@ -10,6 +10,8 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Optional;
+
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
@@ -53,7 +55,8 @@ class RegistrationWorkflowServiceTest {
                 "jane@example.com", CLIENT_IP
         )).thenReturn(true);
 
-        when(registrationService.register(request)).thenReturn(user);
+        when(registrationService.register(request))
+                .thenReturn(Optional.of(user));
 
         when(emailVerificationTokenService.createVerificationToken(user))
                 .thenReturn(verificationToken);
@@ -150,7 +153,8 @@ class RegistrationWorkflowServiceTest {
                 "jane@example.com", CLIENT_IP
         )).thenReturn(true);
 
-        when(registrationService.register(request)).thenReturn(user);
+        when(registrationService.register(request))
+                .thenReturn(Optional.of(user));
 
         when(emailVerificationTokenService.createVerificationToken(user))
                 .thenThrow(exception);
@@ -163,40 +167,68 @@ class RegistrationWorkflowServiceTest {
                 .sendVerificationEmail(any(), any(), any());
     }
 
+
     @Test
-    void propagatesEmailSendingFailure() {
+    void handlesEmailSendingFailureWithoutFailingRegistration() {
 
         RegisterRequest request = request();
         User user = user();
 
         String verificationToken = "verification-token";
 
-        RuntimeException exception =
-                new RuntimeException("email sending failed");
-
         when(registrationRateLimitService.isAllowed(
                 "jane@example.com", CLIENT_IP
         )).thenReturn(true);
 
-        when(registrationService.register(request)).thenReturn(user);
+        when(registrationService.register(request))
+                .thenReturn(Optional.of(user));
 
         when(emailVerificationTokenService.createVerificationToken(user))
                 .thenReturn(verificationToken);
 
-        doThrow(exception).when(emailSenderService).sendVerificationEmail(
+        doThrow(new org.springframework.mail.MailSendException(
+                "Mail server unavailable"
+        )).when(emailSenderService).sendVerificationEmail(
                 user.getEmail(),
                 user.getName(),
                 verificationToken
         );
 
-        assertThatThrownBy(() ->
+        // Registration should complete even if email delivery fails.
+        org.assertj.core.api.Assertions.assertThatCode(() ->
                 registrationWorkflowService.register(request, CLIENT_IP)
-        ).isSameAs(exception);
+        ).doesNotThrowAnyException();
 
         verify(emailSenderService).sendVerificationEmail(
                 user.getEmail(),
                 user.getName(),
                 verificationToken
+        );
+    }
+
+
+    @Test
+    void doesNotCreateVerificationTokenWhenEmailAlreadyExists() {
+
+        RegisterRequest request = request();
+
+        when(registrationRateLimitService.isAllowed(
+                "jane@example.com", CLIENT_IP
+        )).thenReturn(true);
+
+        when(registrationService.register(request))
+                .thenReturn(Optional.empty());
+
+        registrationWorkflowService.register(request, CLIENT_IP);
+
+        verify(registrationRateLimitService)
+                .recordAttempt("jane@example.com", CLIENT_IP);
+
+        verify(registrationService).register(request);
+
+        verifyNoInteractions(
+                emailVerificationTokenService,
+                emailSenderService
         );
     }
 

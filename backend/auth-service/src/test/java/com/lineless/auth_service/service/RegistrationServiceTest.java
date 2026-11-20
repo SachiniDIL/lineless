@@ -1,11 +1,11 @@
+
 package com.lineless.auth_service.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
+
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,7 +17,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import com.lineless.auth_service.dto.request.RegisterRequest;
 import com.lineless.auth_service.entity.User;
 import com.lineless.auth_service.entity.UserRole;
-import com.lineless.auth_service.exception.EmailAlreadyExistsException;
 import com.lineless.auth_service.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,54 +31,77 @@ class RegistrationServiceTest {
     void setUp() {
         registrationService = new RegistrationService(
                 userRepository,
-                new BCryptPasswordEncoder());
+                new BCryptPasswordEncoder()
+        );
     }
 
     @Test
     void registersUserSuccessfully() {
+
         RegisterRequest request = new RegisterRequest(
                 "Jane Smith",
                 "jane@example.com",
-                "password123");
-        when(userRepository.existsByEmail("jane@example.com")).thenReturn(false);
+                "password123"
+        );
+
+        when(userRepository.existsByEmail("jane@example.com"))
+                .thenReturn(false);
+
         when(userRepository.save(any(User.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        User user = registrationService.register(request);
+        Optional<User> result = registrationService.register(request);
+
+        assertThat(result).isPresent();
+
+        User user = result.orElseThrow();
 
         assertThat(user.getName()).isEqualTo("Jane Smith");
         assertThat(user.getEmail()).isEqualTo("jane@example.com");
+
         verify(userRepository).save(any(User.class));
     }
 
     @Test
-    void rejectsDuplicateEmail() {
+    void returnsEmptyWhenEmailAlreadyExists() {
+
         RegisterRequest request = new RegisterRequest(
                 "Jane Smith",
                 "jane@example.com",
-                "password123");
-        when(userRepository.existsByEmail("jane@example.com")).thenReturn(true);
+                "password123"
+        );
 
-        assertThatThrownBy(() -> registrationService.register(request))
-                .isInstanceOf(EmailAlreadyExistsException.class);
+        when(userRepository.existsByEmail("jane@example.com"))
+                .thenReturn(true);
+
+        Optional<User> result = registrationService.register(request);
+
+        assertThat(result).isEmpty();
+
         verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
     void hashesPasswordUsingBcrypt() {
+
         RegisterRequest request = new RegisterRequest(
                 "Jane Smith",
                 "jane@example.com",
-                "password123");
-        when(userRepository.existsByEmail("jane@example.com")).thenReturn(false);
+                "password123"
+        );
+
+        when(userRepository.existsByEmail("jane@example.com"))
+                .thenReturn(false);
+
         when(userRepository.save(any(User.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        User user = registrationService.register(request);
+        User user = registrationService.register(request).orElseThrow();
 
         assertThat(user.getPasswordHash())
                 .isNotEqualTo(request.password())
                 .startsWith("$2");
+
         assertThat(new BCryptPasswordEncoder()
                 .matches(request.password(), user.getPasswordHash()))
                 .isTrue();
@@ -87,15 +109,20 @@ class RegistrationServiceTest {
 
     @Test
     void assignsUserRoleToNewUsers() {
+
         RegisterRequest request = new RegisterRequest(
                 "Jane Smith",
                 "jane@example.com",
-                "password123");
-        when(userRepository.existsByEmail("jane@example.com")).thenReturn(false);
+                "password123"
+        );
+
+        when(userRepository.existsByEmail("jane@example.com"))
+                .thenReturn(false);
+
         when(userRepository.save(any(User.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        User user = registrationService.register(request);
+        User user = registrationService.register(request).orElseThrow();
 
         assertThat(user.getRole()).isEqualTo(UserRole.USER);
     }

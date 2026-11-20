@@ -78,7 +78,7 @@ class AuthControllerTest {
                             request.setRemoteAddr("192.0.2.10");
                             return request;
                         }))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
 
         verify(registrationWorkflowService)
                 .register(any(), eq("192.0.2.10"));
@@ -364,8 +364,7 @@ class AuthControllerTest {
                 .register(any(), anyString());
     }
 
-
-    // 1. Forgot password request should succeed
+    //Forgot password request should succeed
     @Test
     void shouldRequestPasswordResetSuccessfully() throws Exception {
 
@@ -388,7 +387,28 @@ class AuthControllerTest {
         );
     }
 
-    // 2. Invalid email should be rejected
+    @Test
+    void shouldReturnOkWhenPasswordResetEmailCannotBeSent() throws Exception {
+
+        // The service catches the MailException internally.
+        // Therefore, the controller receives a normal return.
+
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "email": "test@example.com"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        verify(forgotPasswordService).requestPasswordReset(
+                any(),
+                anyString()
+        );
+    }
+
+    // Invalid email should be rejected
     @Test
     void shouldRejectForgotPasswordWithInvalidEmail() throws Exception {
 
@@ -404,7 +424,7 @@ class AuthControllerTest {
         verifyNoInteractions(forgotPasswordService);
     }
 
-    // 3. Missing email should be rejected
+    // Missing email should be rejected
     @Test
     void shouldRejectForgotPasswordWithMissingEmail() throws Exception {
 
@@ -418,7 +438,7 @@ class AuthControllerTest {
         verifyNoInteractions(forgotPasswordService);
     }
 
-    // 4. Forgot password rate limit should return 429
+    // Forgot password rate limit should return 429
     @Test
     void shouldReturnTooManyRequestsWhenForgotPasswordRateLimitIsExceeded()
             throws Exception {
@@ -441,7 +461,7 @@ class AuthControllerTest {
                 .requestPasswordReset(any(), anyString());
     }
 
-    // 5. Password reset should succeed
+    // Password reset should succeed
     @Test
     void shouldResetPasswordSuccessfully() throws Exception {
 
@@ -458,7 +478,7 @@ class AuthControllerTest {
         verify(resetPasswordService).resetPassword(any());
     }
 
-    // 6. Invalid reset token should return 400
+    // Invalid reset token should return 400
     @Test
     void shouldRejectInvalidPasswordResetToken() throws Exception {
 
@@ -479,7 +499,7 @@ class AuthControllerTest {
         verify(resetPasswordService).resetPassword(any());
     }
 
-    // 7. Missing reset token should be rejected
+    // Missing reset token should be rejected
     @Test
     void shouldRejectPasswordResetWithMissingToken() throws Exception {
 
@@ -495,7 +515,7 @@ class AuthControllerTest {
         verifyNoInteractions(resetPasswordService);
     }
 
-    // 8. Weak password should be rejected
+    // Weak password should be rejected
     @Test
     void shouldRejectPasswordResetWithWeakPassword() throws Exception {
 
@@ -511,5 +531,4 @@ class AuthControllerTest {
 
         verifyNoInteractions(resetPasswordService);
     }
-
 }
