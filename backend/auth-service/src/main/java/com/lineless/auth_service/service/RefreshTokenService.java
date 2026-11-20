@@ -1,23 +1,22 @@
 package com.lineless.auth_service.service;
 
+import com.lineless.auth_service.dto.response.RefreshTokenResult;
+import com.lineless.auth_service.entity.RefreshToken;
+import com.lineless.auth_service.entity.User;
+import com.lineless.auth_service.entity.UserStatus;
+import com.lineless.auth_service.exception.InvalidRefreshTokenException;
+import com.lineless.auth_service.exception.RefreshTokenReuseException;
+import com.lineless.auth_service.repository.RefreshTokenRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.UUID;
-
-import com.lineless.auth_service.dto.response.RefreshTokenResult;
-import com.lineless.auth_service.entity.UserStatus;
-import com.lineless.auth_service.exception.RefreshTokenReuseException;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import com.lineless.auth_service.entity.RefreshToken;
-import com.lineless.auth_service.entity.User;
-import com.lineless.auth_service.exception.InvalidRefreshTokenException;
-import com.lineless.auth_service.repository.RefreshTokenRepository;
 
 @Service
 public class RefreshTokenService {
@@ -154,6 +153,15 @@ public class RefreshTokenService {
                         refreshTokenRepository.save(refreshToken);
                     }
                 });
+    }
+
+    @Transactional
+    public void revokeAllUserSessions(UUID userId) {
+
+        refreshTokenRepository.revokeAllActiveTokensByUserId(
+                userId,
+                OffsetDateTime.now()
+        );
     }
 
     private String hashToken(String token) {

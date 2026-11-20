@@ -4,10 +4,7 @@ import com.lineless.auth_service.dto.response.RefreshTokenResult;
 import com.lineless.auth_service.entity.User;
 import com.lineless.auth_service.entity.UserRole;
 import com.lineless.auth_service.entity.UserStatus;
-import com.lineless.auth_service.exception.InvalidGoogleTokenException;
-import com.lineless.auth_service.exception.InvalidRefreshTokenException;
-import com.lineless.auth_service.exception.RateLimitExceededException;
-import com.lineless.auth_service.exception.RefreshTokenReuseException;
+import com.lineless.auth_service.exception.*;
 import com.lineless.auth_service.service.*;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
@@ -24,8 +21,9 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(
         controllers = AuthController.class,
@@ -58,18 +56,24 @@ class AuthControllerTest {
     @MockitoBean
     private GoogleAuthenticationService googleAuthenticationService;
 
+    @MockitoBean
+    private ForgotPasswordService forgotPasswordService;
+
+    @MockitoBean
+    private ResetPasswordService resetPasswordService;
+
     @Test
     void shouldRegisterUserSuccessfully() throws Exception {
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                    {
-                        "name": "Test User",
-                        "email": "test@example.com",
-                        "password": "Password123"
-                    }
-                    """)
+                                {
+                                    "name": "Test User",
+                                    "email": "test@example.com",
+                                    "password": "Password123"
+                                }
+                                """)
                         .with(request -> {
                             request.setRemoteAddr("192.0.2.10");
                             return request;
@@ -98,11 +102,11 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                    {
-                        "email": "test@example.com",
-                        "password": "Password123"
-                    }
-                    """))
+                                {
+                                    "email": "test@example.com",
+                                    "password": "Password123"
+                                }
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("test-access-token"))
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
@@ -154,10 +158,10 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/google")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                    {
-                        "idToken": "valid-google-token"
-                    }
-                    """))
+                                {
+                                    "idToken": "valid-google-token"
+                                }
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("test-access-token"))
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
@@ -183,10 +187,10 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/google")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                    {
-                        "idToken": "invalid-token"
-                    }
-                    """))
+                                {
+                                    "idToken": "invalid-token"
+                                }
+                                """))
                 .andExpect(status().isUnauthorized());
 
         verify(refreshTokenService, never()).createRefreshToken(any());
@@ -199,10 +203,10 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/google")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                    {
-                        "idToken": ""
-                    }
-                    """))
+                                {
+                                    "idToken": ""
+                                }
+                                """))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(googleAuthenticationService);
@@ -319,11 +323,11 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                    {
-                        "email": "test@example.com",
-                        "password": "Password123"
-                    }
-                    """))
+                                {
+                                    "email": "test@example.com",
+                                    "password": "Password123"
+                                }
+                                """))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.error").value("Too Many Requests"))
@@ -344,12 +348,12 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                    {
-                        "name": "Test User",
-                        "email": "test@example.com",
-                        "password": "Password123"
-                    }
-                    """))
+                                {
+                                    "name": "Test User",
+                                    "email": "test@example.com",
+                                    "password": "Password123"
+                                }
+                                """))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.error").value("Too Many Requests"))
@@ -359,4 +363,153 @@ class AuthControllerTest {
         verify(registrationWorkflowService)
                 .register(any(), anyString());
     }
+
+
+    // 1. Forgot password request should succeed
+    @Test
+    void shouldRequestPasswordResetSuccessfully() throws Exception {
+
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "email": "test@example.com"
+                                }
+                                """)
+                        .with(request -> {
+                            request.setRemoteAddr("192.0.2.10");
+                            return request;
+                        }))
+                .andExpect(status().isOk());
+
+        verify(forgotPasswordService).requestPasswordReset(
+                any(),
+                eq("192.0.2.10")
+        );
+    }
+
+    // 2. Invalid email should be rejected
+    @Test
+    void shouldRejectForgotPasswordWithInvalidEmail() throws Exception {
+
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "email": "invalid-email"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(forgotPasswordService);
+    }
+
+    // 3. Missing email should be rejected
+    @Test
+    void shouldRejectForgotPasswordWithMissingEmail() throws Exception {
+
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(forgotPasswordService);
+    }
+
+    // 4. Forgot password rate limit should return 429
+    @Test
+    void shouldReturnTooManyRequestsWhenForgotPasswordRateLimitIsExceeded()
+            throws Exception {
+
+        doThrow(new RateLimitExceededException())
+                .when(forgotPasswordService)
+                .requestPasswordReset(any(), anyString());
+
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "email": "test@example.com"
+                                }
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429));
+
+        verify(forgotPasswordService)
+                .requestPasswordReset(any(), anyString());
+    }
+
+    // 5. Password reset should succeed
+    @Test
+    void shouldResetPasswordSuccessfully() throws Exception {
+
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "token": "valid-reset-token",
+                                    "newPassword": "NewPassword123"
+                                }
+                                """))
+                .andExpect(status().isNoContent());
+
+        verify(resetPasswordService).resetPassword(any());
+    }
+
+    // 6. Invalid reset token should return 400
+    @Test
+    void shouldRejectInvalidPasswordResetToken() throws Exception {
+
+        doThrow(new InvalidPasswordResetTokenException(
+                "Invalid or expired password reset link."
+        )).when(resetPasswordService).resetPassword(any());
+
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "token": "invalid-token",
+                                    "newPassword": "NewPassword123"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verify(resetPasswordService).resetPassword(any());
+    }
+
+    // 7. Missing reset token should be rejected
+    @Test
+    void shouldRejectPasswordResetWithMissingToken() throws Exception {
+
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "newPassword": "NewPassword123"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(resetPasswordService);
+    }
+
+    // 8. Weak password should be rejected
+    @Test
+    void shouldRejectPasswordResetWithWeakPassword() throws Exception {
+
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "token": "valid-reset-token",
+                                    "newPassword": "weak"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(resetPasswordService);
+    }
+
 }

@@ -35,7 +35,9 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/logout",
                                 "/api/auth/verify-email",
-                                "/api/auth/resend-verification"
+                                "/api/auth/resend-verification",
+                                "/api/auth/forgot-password",
+                                "/api/auth/reset-password"
                         ).permitAll()
 
                         .requestMatchers(

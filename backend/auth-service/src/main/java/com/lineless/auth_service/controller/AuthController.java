@@ -1,8 +1,6 @@
 package com.lineless.auth_service.controller;
 
-import com.lineless.auth_service.dto.request.GoogleLoginRequest;
-import com.lineless.auth_service.dto.request.LoginRequest;
-import com.lineless.auth_service.dto.request.RegisterRequest;
+import com.lineless.auth_service.dto.request.*;
 import com.lineless.auth_service.dto.response.AuthResponse;
 import com.lineless.auth_service.dto.response.UserResponse;
 import com.lineless.auth_service.service.*;
@@ -32,6 +30,8 @@ public class AuthController {
     private final RefreshTokenCookieService refreshTokenCookieService;
     private final GoogleAuthenticationService googleAuthenticationService;
     private final RegistrationWorkflowService registrationWorkflowService;
+    private final ForgotPasswordService forgotPasswordService;
+    private final ResetPasswordService resetPasswordService;
 
     @Value("${app.auth.refresh-cookie.name}")
     private String refreshCookieName;
@@ -193,6 +193,28 @@ public class AuthController {
         return ResponseEntity.noContent()
                 .headers(headers)
                 .build();
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Void> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request,
+            HttpServletRequest httpRequest) {
+
+        forgotPasswordService.requestPasswordReset(
+                request,
+                httpRequest.getRemoteAddr()
+        );
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+
+        resetPasswordService.resetPassword(request);
+
+        return ResponseEntity.noContent().build();
     }
 
 }
