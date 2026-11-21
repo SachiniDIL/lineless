@@ -16,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.util.UUID;
 
@@ -65,7 +66,7 @@ class AuthControllerTest {
     @Test
     void shouldRegisterUserSuccessfully() throws Exception {
 
-        mockMvc.perform(post("/api/auth/register")
+        mockMvc.perform(withCsrf(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -77,7 +78,7 @@ class AuthControllerTest {
                         .with(request -> {
                             request.setRemoteAddr("192.0.2.10");
                             return request;
-                        }))
+                        })))
                 .andExpect(status().isAccepted());
 
         verify(registrationWorkflowService)
@@ -99,14 +100,14 @@ class AuthControllerTest {
         when(refreshTokenService.createRefreshToken(user))
                 .thenReturn("test-refresh-token");
 
-        mockMvc.perform(post("/api/auth/login")
+        mockMvc.perform(withCsrf(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                     "email": "test@example.com",
                                     "password": "Password123"
                                 }
-                                """))
+                                """)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("test-access-token"))
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
@@ -122,8 +123,8 @@ class AuthControllerTest {
     @Test
     void shouldLogoutSuccessfully() throws Exception {
 
-        mockMvc.perform(post("/api/auth/logout")
-                        .cookie(new Cookie("lineless_refresh", "test-refresh-token")))
+        mockMvc.perform(withCsrf(post("/api/auth/logout")
+                        .cookie(new Cookie("lineless_refresh", "test-refresh-token"))))
                 .andExpect(status().isNoContent());
 
         verify(refreshTokenService)
@@ -155,13 +156,13 @@ class AuthControllerTest {
         when(refreshTokenService.createRefreshToken(user))
                 .thenReturn("test-refresh-token");
 
-        mockMvc.perform(post("/api/auth/google")
+        mockMvc.perform(withCsrf(post("/api/auth/google")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                     "idToken": "valid-google-token"
                                 }
-                                """))
+                                """)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("test-access-token"))
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
@@ -184,13 +185,13 @@ class AuthControllerTest {
         when(googleAuthenticationService.authenticate("invalid-token"))
                 .thenThrow(new InvalidGoogleTokenException("Invalid Google ID token"));
 
-        mockMvc.perform(post("/api/auth/google")
+        mockMvc.perform(withCsrf(post("/api/auth/google")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                     "idToken": "invalid-token"
                                 }
-                                """))
+                                """)))
                 .andExpect(status().isUnauthorized());
 
         verify(refreshTokenService, never()).createRefreshToken(any());
@@ -200,13 +201,13 @@ class AuthControllerTest {
     @Test
     void shouldRejectGoogleLoginWithEmptyIdToken() throws Exception {
 
-        mockMvc.perform(post("/api/auth/google")
+        mockMvc.perform(withCsrf(post("/api/auth/google")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                     "idToken": ""
                                 }
-                                """))
+                                """)))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(googleAuthenticationService);
@@ -236,8 +237,8 @@ class AuthControllerTest {
         when(jwtService.getAccessTokenExpiration())
                 .thenReturn(900L);
 
-        mockMvc.perform(post("/api/auth/refresh")
-                        .cookie(new Cookie("lineless_refresh", "old-refresh-token")))
+        mockMvc.perform(withCsrf(post("/api/auth/refresh")
+                        .cookie(new Cookie("lineless_refresh", "old-refresh-token"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("new-access-token"))
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
@@ -262,7 +263,7 @@ class AuthControllerTest {
                         "Invalid refresh token"
                 ));
 
-        mockMvc.perform(post("/api/auth/refresh"))
+        mockMvc.perform(withCsrf(post("/api/auth/refresh")))
                 .andExpect(status().isUnauthorized());
 
         verify(refreshTokenService).rotateRefreshToken(null);
@@ -281,8 +282,8 @@ class AuthControllerTest {
                         "Invalid refresh token"
                 ));
 
-        mockMvc.perform(post("/api/auth/refresh")
-                        .cookie(new Cookie("lineless_refresh", "invalid-token")))
+        mockMvc.perform(withCsrf(post("/api/auth/refresh")
+                        .cookie(new Cookie("lineless_refresh", "invalid-token"))))
                 .andExpect(status().isUnauthorized());
 
         verify(refreshTokenService).rotateRefreshToken("invalid-token");
@@ -301,8 +302,8 @@ class AuthControllerTest {
                         "Refresh token reuse detected"
                 ));
 
-        mockMvc.perform(post("/api/auth/refresh")
-                        .cookie(new Cookie("lineless_refresh", "reused-token")))
+        mockMvc.perform(withCsrf(post("/api/auth/refresh")
+                        .cookie(new Cookie("lineless_refresh", "reused-token"))))
                 .andExpect(status().isUnauthorized());
 
         verify(refreshTokenService).rotateRefreshToken("reused-token");
@@ -320,14 +321,14 @@ class AuthControllerTest {
         when(loginService.login(any(), anyString()))
                 .thenThrow(new RateLimitExceededException());
 
-        mockMvc.perform(post("/api/auth/login")
+        mockMvc.perform(withCsrf(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                     "email": "test@example.com",
                                     "password": "Password123"
                                 }
-                                """))
+                                """)))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.error").value("Too Many Requests"))
@@ -345,7 +346,7 @@ class AuthControllerTest {
                 .when(registrationWorkflowService)
                 .register(any(), anyString());
 
-        mockMvc.perform(post("/api/auth/register")
+        mockMvc.perform(withCsrf(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -353,7 +354,7 @@ class AuthControllerTest {
                                     "email": "test@example.com",
                                     "password": "Password123"
                                 }
-                                """))
+                                """)))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.error").value("Too Many Requests"))
@@ -368,7 +369,7 @@ class AuthControllerTest {
     @Test
     void shouldRequestPasswordResetSuccessfully() throws Exception {
 
-        mockMvc.perform(post("/api/auth/forgot-password")
+        mockMvc.perform(withCsrf(post("/api/auth/forgot-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -378,7 +379,7 @@ class AuthControllerTest {
                         .with(request -> {
                             request.setRemoteAddr("192.0.2.10");
                             return request;
-                        }))
+                        })))
                 .andExpect(status().isOk());
 
         verify(forgotPasswordService).requestPasswordReset(
@@ -393,13 +394,13 @@ class AuthControllerTest {
         // The service catches the MailException internally.
         // Therefore, the controller receives a normal return.
 
-        mockMvc.perform(post("/api/auth/forgot-password")
+        mockMvc.perform(withCsrf(post("/api/auth/forgot-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                     "email": "test@example.com"
                                 }
-                                """))
+                                """)))
                 .andExpect(status().isOk());
 
         verify(forgotPasswordService).requestPasswordReset(
@@ -412,13 +413,13 @@ class AuthControllerTest {
     @Test
     void shouldRejectForgotPasswordWithInvalidEmail() throws Exception {
 
-        mockMvc.perform(post("/api/auth/forgot-password")
+        mockMvc.perform(withCsrf(post("/api/auth/forgot-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                     "email": "invalid-email"
                                 }
-                                """))
+                                """)))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(forgotPasswordService);
@@ -428,11 +429,11 @@ class AuthControllerTest {
     @Test
     void shouldRejectForgotPasswordWithMissingEmail() throws Exception {
 
-        mockMvc.perform(post("/api/auth/forgot-password")
+        mockMvc.perform(withCsrf(post("/api/auth/forgot-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {}
-                                """))
+                                """)))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(forgotPasswordService);
@@ -447,13 +448,13 @@ class AuthControllerTest {
                 .when(forgotPasswordService)
                 .requestPasswordReset(any(), anyString());
 
-        mockMvc.perform(post("/api/auth/forgot-password")
+        mockMvc.perform(withCsrf(post("/api/auth/forgot-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                     "email": "test@example.com"
                                 }
-                                """))
+                                """)))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429));
 
@@ -465,14 +466,14 @@ class AuthControllerTest {
     @Test
     void shouldResetPasswordSuccessfully() throws Exception {
 
-        mockMvc.perform(post("/api/auth/reset-password")
+        mockMvc.perform(withCsrf(post("/api/auth/reset-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                     "token": "valid-reset-token",
                                     "newPassword": "NewPassword123"
                                 }
-                                """))
+                                """)))
                 .andExpect(status().isNoContent());
 
         verify(resetPasswordService).resetPassword(any());
@@ -486,14 +487,14 @@ class AuthControllerTest {
                 "Invalid or expired password reset link."
         )).when(resetPasswordService).resetPassword(any());
 
-        mockMvc.perform(post("/api/auth/reset-password")
+        mockMvc.perform(withCsrf(post("/api/auth/reset-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                     "token": "invalid-token",
                                     "newPassword": "NewPassword123"
                                 }
-                                """))
+                                """)))
                 .andExpect(status().isBadRequest());
 
         verify(resetPasswordService).resetPassword(any());
@@ -503,13 +504,13 @@ class AuthControllerTest {
     @Test
     void shouldRejectPasswordResetWithMissingToken() throws Exception {
 
-        mockMvc.perform(post("/api/auth/reset-password")
+        mockMvc.perform(withCsrf(post("/api/auth/reset-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                     "newPassword": "NewPassword123"
                                 }
-                                """))
+                                """)))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(resetPasswordService);
@@ -519,16 +520,26 @@ class AuthControllerTest {
     @Test
     void shouldRejectPasswordResetWithWeakPassword() throws Exception {
 
-        mockMvc.perform(post("/api/auth/reset-password")
+        mockMvc.perform(withCsrf(post("/api/auth/reset-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                     "token": "valid-reset-token",
                                     "newPassword": "weak"
                                 }
-                                """))
+                                """)))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(resetPasswordService);
+    }
+
+    private MockHttpServletRequestBuilder withCsrf(
+            MockHttpServletRequestBuilder request
+    ) {
+        String token = "test-csrf-token";
+
+        return request
+                .cookie(new Cookie("XSRF-TOKEN", token))
+                .header("X-XSRF-TOKEN", token);
     }
 }
