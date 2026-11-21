@@ -18,6 +18,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,12 +26,16 @@ class LoginServiceTest {
 
     private static final String EMAIL = "jane@example.com";
     private static final String CLIENT_IP = "192.168.1.10";
+
     private final BCryptPasswordEncoder passwordEncoder =
             new BCryptPasswordEncoder();
+
     @Mock
     private UserRepository userRepository;
+
     @Mock
     private LoginAttemptRateLimitService loginAttemptRateLimitService;
+
     private LoginService loginService;
 
     @BeforeEach
@@ -52,28 +57,38 @@ class LoginServiceTest {
                 .thenReturn(Optional.of(user));
 
         User result = loginService.login(
-                new LoginRequest(EMAIL, "password123"), CLIENT_IP);
+                new LoginRequest(EMAIL, "password123"),
+                CLIENT_IP
+        );
 
         assertThat(result).isSameAs(user);
 
         verify(loginAttemptRateLimitService)
                 .resetEmailAttempts(EMAIL);
+
+        verify(loginAttemptRateLimitService, never())
+                .recordFailedAttempt(anyString(), anyString());
     }
 
     @Test
     void rejectsLoginWhenEmailDoesNotExist() {
 
         allowLoginAttempts();
+        allowFailedAttemptRecording();
 
         when(userRepository.findByEmail(EMAIL))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> loginService.login(
-                new LoginRequest(EMAIL, "password123"), CLIENT_IP))
-                .isInstanceOf(InvalidCredentialsException.class);
+                new LoginRequest(EMAIL, "password123"),
+                CLIENT_IP
+        )).isInstanceOf(InvalidCredentialsException.class);
 
         verify(loginAttemptRateLimitService)
                 .recordFailedAttempt(EMAIL, CLIENT_IP);
+
+        verify(loginAttemptRateLimitService, never())
+                .resetEmailAttempts(anyString());
     }
 
     @Test
@@ -81,16 +96,21 @@ class LoginServiceTest {
 
         User user = activeUser();
         allowLoginAttempts();
+        allowFailedAttemptRecording();
 
         when(userRepository.findByEmail(EMAIL))
                 .thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> loginService.login(
-                new LoginRequest(EMAIL, "wrong-password"), CLIENT_IP))
-                .isInstanceOf(InvalidCredentialsException.class);
+                new LoginRequest(EMAIL, "wrong-password"),
+                CLIENT_IP
+        )).isInstanceOf(InvalidCredentialsException.class);
 
         verify(loginAttemptRateLimitService)
                 .recordFailedAttempt(EMAIL, CLIENT_IP);
+
+        verify(loginAttemptRateLimitService, never())
+                .resetEmailAttempts(anyString());
     }
 
     @Test
@@ -98,14 +118,16 @@ class LoginServiceTest {
 
         User user = activeUser();
         user.setStatus(UserStatus.INACTIVE);
+
         allowLoginAttempts();
 
         when(userRepository.findByEmail(EMAIL))
                 .thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> loginService.login(
-                new LoginRequest(EMAIL, "password123"), CLIENT_IP))
-                .isInstanceOf(InvalidCredentialsException.class);
+                new LoginRequest(EMAIL, "password123"),
+                CLIENT_IP
+        )).isInstanceOf(InvalidCredentialsException.class);
 
         verify(loginAttemptRateLimitService)
                 .resetEmailAttempts(EMAIL);
@@ -119,14 +141,16 @@ class LoginServiceTest {
 
         User user = activeUser();
         user.setEmailVerified(false);
+
         allowLoginAttempts();
 
         when(userRepository.findByEmail(EMAIL))
                 .thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> loginService.login(
-                new LoginRequest(EMAIL, "password123"), CLIENT_IP))
-                .isInstanceOf(EmailNotVerifiedException.class);
+                new LoginRequest(EMAIL, "password123"),
+                CLIENT_IP
+        )).isInstanceOf(EmailNotVerifiedException.class);
 
         verify(loginAttemptRateLimitService)
                 .resetEmailAttempts(EMAIL);
@@ -137,17 +161,23 @@ class LoginServiceTest {
 
         User user = activeUser();
         user.setPasswordHash(null);
+
         allowLoginAttempts();
+        allowFailedAttemptRecording();
 
         when(userRepository.findByEmail(EMAIL))
                 .thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> loginService.login(
-                new LoginRequest(EMAIL, "password123"), CLIENT_IP))
-                .isInstanceOf(InvalidCredentialsException.class);
+                new LoginRequest(EMAIL, "password123"),
+                CLIENT_IP
+        )).isInstanceOf(InvalidCredentialsException.class);
 
         verify(loginAttemptRateLimitService)
                 .recordFailedAttempt(EMAIL, CLIENT_IP);
+
+        verify(loginAttemptRateLimitService, never())
+                .resetEmailAttempts(anyString());
     }
 
     @Test
@@ -157,13 +187,17 @@ class LoginServiceTest {
                 .thenReturn(false);
 
         assertThatThrownBy(() -> loginService.login(
-                new LoginRequest(EMAIL, "password123"), CLIENT_IP))
-                .isInstanceOf(RateLimitExceededException.class);
+                new LoginRequest(EMAIL, "password123"),
+                CLIENT_IP
+        )).isInstanceOf(RateLimitExceededException.class);
 
         verifyNoInteractions(userRepository);
 
         verify(loginAttemptRateLimitService, never())
                 .recordFailedAttempt(anyString(), anyString());
+
+        verify(loginAttemptRateLimitService, never())
+                .resetEmailAttempts(anyString());
     }
 
     @Test
@@ -179,16 +213,27 @@ class LoginServiceTest {
 
         User result = loginService.login(
                 new LoginRequest("  JANE@EXAMPLE.COM  ", "password123"),
-                CLIENT_IP);
+                CLIENT_IP
+        );
 
         assertThat(result).isSameAs(user);
 
         verify(loginAttemptRateLimitService)
                 .isAllowed(EMAIL, CLIENT_IP);
+
+        verify(userRepository)
+                .findByEmail(EMAIL);
     }
 
     private void allowLoginAttempts() {
-        when(loginAttemptRateLimitService.isAllowed(EMAIL, CLIENT_IP))
+        when(loginAttemptRateLimitService.isAllowed(
+                anyString(), anyString()))
+                .thenReturn(true);
+    }
+
+    private void allowFailedAttemptRecording() {
+        when(loginAttemptRateLimitService.recordFailedAttempt(
+                anyString(), anyString()))
                 .thenReturn(true);
     }
 

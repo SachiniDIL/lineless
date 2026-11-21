@@ -17,8 +17,10 @@ class RegistrationRateLimitServiceTest {
 
     private static final String EMAIL = "jane@example.com";
     private static final String CLIENT_IP = "192.168.1.10";
+
     @Mock
     private RateLimitService rateLimitService;
+
     private RegistrationRateLimitService registrationRateLimitService;
 
     @BeforeEach
@@ -29,70 +31,88 @@ class RegistrationRateLimitServiceTest {
 
     @Test
     void allowsRegistrationWhenBothLimitsHaveAvailableTokens() {
-        when(rateLimitService.isAllowed(
+
+        when(rateLimitService.tryConsume(
                 anyString(), eq(3L), any(Duration.class)))
                 .thenReturn(true);
 
-        when(rateLimitService.isAllowed(
+        when(rateLimitService.tryConsume(
                 anyString(), eq(5L), any(Duration.class)))
                 .thenReturn(true);
 
-        assertTrue(registrationRateLimitService.isAllowed(
+        assertTrue(registrationRateLimitService.tryConsume(
                 EMAIL, CLIENT_IP));
-    }
-
-    @Test
-    void blocksRegistrationWhenEmailLimitIsReached() {
-        when(rateLimitService.isAllowed(
-                anyString(), eq(3L), any(Duration.class)))
-                .thenReturn(false);
-
-        when(rateLimitService.isAllowed(
-                anyString(), eq(5L), any(Duration.class)))
-                .thenReturn(true);
-
-        assertFalse(registrationRateLimitService.isAllowed(
-                EMAIL, CLIENT_IP));
-    }
-
-    @Test
-    void blocksRegistrationWhenIpLimitIsReached() {
-        when(rateLimitService.isAllowed(
-                anyString(), eq(3L), any(Duration.class)))
-                .thenReturn(true);
-
-        when(rateLimitService.isAllowed(
-                anyString(), eq(5L), any(Duration.class)))
-                .thenReturn(false);
-
-        assertFalse(registrationRateLimitService.isAllowed(
-                EMAIL, CLIENT_IP));
-    }
-
-    @Test
-    void recordsRegistrationAttemptForEmailAndIp() {
-        registrationRateLimitService.recordAttempt(
-                EMAIL, CLIENT_IP);
 
         verify(rateLimitService).tryConsume(
                 startsWith("lineless:auth:rate-limit:register:email:"),
                 eq(3L),
-                eq(Duration.ofHours(1)));
+                eq(Duration.ofHours(1))
+        );
 
         verify(rateLimitService).tryConsume(
                 startsWith("lineless:auth:rate-limit:register:ip:"),
                 eq(5L),
-                eq(Duration.ofHours(1)));
+                eq(Duration.ofHours(1))
+        );
+    }
+
+    @Test
+    void blocksRegistrationWhenEmailLimitIsReached() {
+
+        when(rateLimitService.tryConsume(
+                anyString(), eq(3L), any(Duration.class)))
+                .thenReturn(false);
+
+        when(rateLimitService.tryConsume(
+                anyString(), eq(5L), any(Duration.class)))
+                .thenReturn(true);
+
+        assertFalse(registrationRateLimitService.tryConsume(
+                EMAIL, CLIENT_IP));
+
+        // Both limits should still be checked and consumed independently.
+        verify(rateLimitService).tryConsume(
+                startsWith("lineless:auth:rate-limit:register:email:"),
+                eq(3L),
+                eq(Duration.ofHours(1))
+        );
+
+        verify(rateLimitService).tryConsume(
+                startsWith("lineless:auth:rate-limit:register:ip:"),
+                eq(5L),
+                eq(Duration.ofHours(1))
+        );
+    }
+
+    @Test
+    void blocksRegistrationWhenIpLimitIsReached() {
+
+        when(rateLimitService.tryConsume(
+                anyString(), eq(3L), any(Duration.class)))
+                .thenReturn(true);
+
+        when(rateLimitService.tryConsume(
+                anyString(), eq(5L), any(Duration.class)))
+                .thenReturn(false);
+
+        assertFalse(registrationRateLimitService.tryConsume(
+                EMAIL, CLIENT_IP));
     }
 
     @Test
     void normalizesEmailBeforeCreatingRateLimitKey() {
-        registrationRateLimitService.recordAttempt(
+
+        when(rateLimitService.tryConsume(
+                anyString(), anyLong(), any(Duration.class)))
+                .thenReturn(true);
+
+        registrationRateLimitService.tryConsume(
                 "  JANE@EXAMPLE.COM  ", CLIENT_IP);
 
         verify(rateLimitService).tryConsume(
                 startsWith("lineless:auth:rate-limit:register:email:"),
                 eq(3L),
-                eq(Duration.ofHours(1)));
+                eq(Duration.ofHours(1))
+        );
     }
 }

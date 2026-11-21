@@ -1,4 +1,3 @@
-
 package com.lineless.auth_service.service;
 
 import com.lineless.auth_service.dto.request.ForgotPasswordRequest;
@@ -31,7 +30,7 @@ public class ForgotPasswordService {
         String normalizedEmail =
                 request.email().trim().toLowerCase(Locale.ROOT);
 
-        boolean allowed = passwordResetRateLimitService.isAllowed(
+        boolean allowed = passwordResetRateLimitService.tryConsume(
                 normalizedEmail,
                 clientIp
         );
@@ -39,11 +38,6 @@ public class ForgotPasswordService {
         if (!allowed) {
             throw new RateLimitExceededException();
         }
-
-        passwordResetRateLimitService.recordAttempt(
-                normalizedEmail,
-                clientIp
-        );
 
         User user = userRepository.findByEmail(normalizedEmail)
                 .orElse(null);

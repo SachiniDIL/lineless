@@ -126,6 +126,18 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(RateLimitInfrastructureException.class)
+    public ResponseEntity<ApiErrorResponse> handleRateLimitInfrastructure(
+            RateLimitInfrastructureException exception,
+            HttpServletRequest request) {
+
+        return buildResponse(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Rate limiting service is temporarily unavailable. Please try again later.",
+                request
+        );
+    }
+
     private ResponseEntity<ApiErrorResponse> buildResponse(
             HttpStatus status,
             String message,

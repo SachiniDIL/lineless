@@ -14,7 +14,8 @@ public class RegistrationRateLimitService {
 
     private static final long EMAIL_CAPACITY = 3;
     private static final long IP_CAPACITY = 5;
-    private static final Duration REFILL_PERIOD = Duration.ofHours(1);
+    private static final Duration REFILL_PERIOD =
+            Duration.ofHours(1);
 
     private static final String EMAIL_KEY_PREFIX =
             "lineless:auth:rate-limit:register:email:";
@@ -24,18 +25,21 @@ public class RegistrationRateLimitService {
 
     private final RateLimitService rateLimitService;
 
-    public RegistrationRateLimitService(RateLimitService rateLimitService) {
+    public RegistrationRateLimitService(
+            RateLimitService rateLimitService
+    ) {
         this.rateLimitService = rateLimitService;
     }
 
-    public boolean isAllowed(String email, String clientIp) {
-        boolean emailAllowed = rateLimitService.isAllowed(
+    public boolean tryConsume(String email, String clientIp) {
+
+        boolean emailAllowed = rateLimitService.tryConsume(
                 getEmailKey(email),
                 EMAIL_CAPACITY,
                 REFILL_PERIOD
         );
 
-        boolean ipAllowed = rateLimitService.isAllowed(
+        boolean ipAllowed = rateLimitService.tryConsume(
                 getIpKey(clientIp),
                 IP_CAPACITY,
                 REFILL_PERIOD
@@ -44,22 +48,9 @@ public class RegistrationRateLimitService {
         return emailAllowed && ipAllowed;
     }
 
-    public void recordAttempt(String email, String clientIp) {
-        rateLimitService.tryConsume(
-                getEmailKey(email),
-                EMAIL_CAPACITY,
-                REFILL_PERIOD
-        );
-
-        rateLimitService.tryConsume(
-                getIpKey(clientIp),
-                IP_CAPACITY,
-                REFILL_PERIOD
-        );
-    }
-
     private String getEmailKey(String email) {
-        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+        String normalizedEmail =
+                email.trim().toLowerCase(Locale.ROOT);
 
         return EMAIL_KEY_PREFIX + hash(normalizedEmail);
     }
@@ -70,7 +61,8 @@ public class RegistrationRateLimitService {
 
     private String hash(String value) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            MessageDigest digest =
+                    MessageDigest.getInstance("SHA-256");
 
             byte[] hash = digest.digest(
                     value.getBytes(StandardCharsets.UTF_8)

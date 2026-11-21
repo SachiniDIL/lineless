@@ -51,7 +51,7 @@ class ForgotPasswordServiceTest {
         ForgotPasswordRequest request =
                 new ForgotPasswordRequest("test@example.com");
 
-        when(passwordResetRateLimitService.isAllowed(
+        when(passwordResetRateLimitService.tryConsume(
                 "test@example.com", clientIp
         )).thenReturn(true);
 
@@ -62,9 +62,6 @@ class ForgotPasswordServiceTest {
                 .thenReturn("generated-reset-token");
 
         forgotPasswordService.requestPasswordReset(request, clientIp);
-
-        verify(passwordResetRateLimitService)
-                .recordAttempt("test@example.com", clientIp);
 
         verify(passwordResetTokenService)
                 .createPasswordResetToken(activeUser);
@@ -83,7 +80,7 @@ class ForgotPasswordServiceTest {
         ForgotPasswordRequest request =
                 new ForgotPasswordRequest("unknown@example.com");
 
-        when(passwordResetRateLimitService.isAllowed(
+        when(passwordResetRateLimitService.tryConsume(
                 "unknown@example.com", clientIp
         )).thenReturn(true);
 
@@ -110,7 +107,7 @@ class ForgotPasswordServiceTest {
         ForgotPasswordRequest request =
                 new ForgotPasswordRequest("test@example.com");
 
-        when(passwordResetRateLimitService.isAllowed(
+        when(passwordResetRateLimitService.tryConsume(
                 "test@example.com", clientIp
         )).thenReturn(true);
 
@@ -135,7 +132,7 @@ class ForgotPasswordServiceTest {
         ForgotPasswordRequest request =
                 new ForgotPasswordRequest("  TEST@EXAMPLE.COM  ");
 
-        when(passwordResetRateLimitService.isAllowed(
+        when(passwordResetRateLimitService.tryConsume(
                 "test@example.com", clientIp
         )).thenReturn(true);
 
@@ -163,7 +160,7 @@ class ForgotPasswordServiceTest {
         ForgotPasswordRequest request =
                 new ForgotPasswordRequest("test@example.com");
 
-        when(passwordResetRateLimitService.isAllowed(
+        when(passwordResetRateLimitService.tryConsume(
                 "test@example.com", clientIp
         )).thenReturn(false);
 
@@ -171,9 +168,6 @@ class ForgotPasswordServiceTest {
                 RateLimitExceededException.class,
                 () -> forgotPasswordService.requestPasswordReset(request, clientIp)
         );
-
-        verify(passwordResetRateLimitService, never())
-                .recordAttempt(anyString(), anyString());
 
         verifyNoInteractions(userRepository);
         verifyNoInteractions(passwordResetTokenService);
@@ -187,7 +181,7 @@ class ForgotPasswordServiceTest {
         ForgotPasswordRequest request =
                 new ForgotPasswordRequest("test@example.com");
 
-        when(passwordResetRateLimitService.isAllowed(
+        when(passwordResetRateLimitService.tryConsume(
                 "test@example.com", clientIp
         )).thenReturn(false);
 
@@ -209,7 +203,7 @@ class ForgotPasswordServiceTest {
 
         User user = activeUser;
 
-        when(passwordResetRateLimitService.isAllowed(
+        when(passwordResetRateLimitService.tryConsume(
                 "test@example.com", "127.0.0.1"
         )).thenReturn(true);
 

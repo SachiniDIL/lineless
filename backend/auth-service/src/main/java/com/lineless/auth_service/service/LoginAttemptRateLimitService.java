@@ -39,12 +39,22 @@ public class LoginAttemptRateLimitService {
         return emailAllowed && ipAllowed;
     }
 
-    public void recordFailedAttempt(String email, String clientIp) {
-        rateLimitService.tryConsume(
-                getEmailKey(email), EMAIL_CAPACITY, REFILL_PERIOD);
 
-        rateLimitService.tryConsume(
-                getIpKey(clientIp), IP_CAPACITY, REFILL_PERIOD);
+    public boolean recordFailedAttempt(String email, String clientIp) {
+
+        boolean emailAllowed = rateLimitService.tryConsume(
+                getEmailKey(email),
+                EMAIL_CAPACITY,
+                REFILL_PERIOD
+        );
+
+        boolean ipAllowed = rateLimitService.tryConsume(
+                getIpKey(clientIp),
+                IP_CAPACITY,
+                REFILL_PERIOD
+        );
+
+        return emailAllowed && ipAllowed;
     }
 
     public void resetEmailAttempts(String email) {

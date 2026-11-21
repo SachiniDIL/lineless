@@ -26,7 +26,7 @@ public class RegistrationWorkflowService {
         String normalizedEmail =
                 request.email().trim().toLowerCase(Locale.ROOT);
 
-        boolean allowed = registrationRateLimitService.isAllowed(
+        boolean allowed = registrationRateLimitService.tryConsume(
                 normalizedEmail,
                 clientIp
         );
@@ -34,11 +34,6 @@ public class RegistrationWorkflowService {
         if (!allowed) {
             throw new RateLimitExceededException();
         }
-
-        registrationRateLimitService.recordAttempt(
-                normalizedEmail,
-                clientIp
-        );
 
         Optional<User> registrationResult =
                 registrationService.register(request);

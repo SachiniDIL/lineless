@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
@@ -51,9 +52,9 @@ class RegistrationWorkflowServiceTest {
         User user = user();
         String verificationToken = "verification-token";
 
-        when(registrationRateLimitService.isAllowed(
-                "jane@example.com", CLIENT_IP
-        )).thenReturn(true);
+        when(registrationRateLimitService.tryConsume(
+                "jane@example.com", CLIENT_IP))
+                .thenReturn(true);
 
         when(registrationService.register(request))
                 .thenReturn(Optional.of(user));
@@ -71,10 +72,7 @@ class RegistrationWorkflowServiceTest {
         );
 
         inOrder.verify(registrationRateLimitService)
-                .isAllowed("jane@example.com", CLIENT_IP);
-
-        inOrder.verify(registrationRateLimitService)
-                .recordAttempt("jane@example.com", CLIENT_IP);
+                .tryConsume("jane@example.com", CLIENT_IP);
 
         inOrder.verify(registrationService).register(request);
 
@@ -93,16 +91,16 @@ class RegistrationWorkflowServiceTest {
 
         RegisterRequest request = request();
 
-        when(registrationRateLimitService.isAllowed(
-                "jane@example.com", CLIENT_IP
-        )).thenReturn(false);
+        when(registrationRateLimitService.tryConsume(
+                "jane@example.com", CLIENT_IP))
+                .thenReturn(false);
 
         assertThatThrownBy(() ->
                 registrationWorkflowService.register(request, CLIENT_IP)
         ).isInstanceOf(RateLimitExceededException.class);
 
-        verify(registrationRateLimitService, never())
-                .recordAttempt(anyString(), anyString());
+        verify(registrationRateLimitService)
+                .tryConsume("jane@example.com", CLIENT_IP);
 
         verifyNoInteractions(
                 registrationService,
@@ -119,9 +117,9 @@ class RegistrationWorkflowServiceTest {
         RuntimeException exception =
                 new RuntimeException("registration failed");
 
-        when(registrationRateLimitService.isAllowed(
-                "jane@example.com", CLIENT_IP
-        )).thenReturn(true);
+        when(registrationRateLimitService.tryConsume(
+                "jane@example.com", CLIENT_IP))
+                .thenReturn(true);
 
         when(registrationService.register(request))
                 .thenThrow(exception);
@@ -131,7 +129,7 @@ class RegistrationWorkflowServiceTest {
         ).isSameAs(exception);
 
         verify(registrationRateLimitService)
-                .recordAttempt("jane@example.com", CLIENT_IP);
+                .tryConsume("jane@example.com", CLIENT_IP);
 
         verify(emailVerificationTokenService, never())
                 .createVerificationToken(any(User.class));
@@ -149,9 +147,9 @@ class RegistrationWorkflowServiceTest {
         RuntimeException exception =
                 new RuntimeException("token generation failed");
 
-        when(registrationRateLimitService.isAllowed(
-                "jane@example.com", CLIENT_IP
-        )).thenReturn(true);
+        when(registrationRateLimitService.tryConsume(
+                "jane@example.com", CLIENT_IP))
+                .thenReturn(true);
 
         when(registrationService.register(request))
                 .thenReturn(Optional.of(user));
@@ -167,7 +165,6 @@ class RegistrationWorkflowServiceTest {
                 .sendVerificationEmail(any(), any(), any());
     }
 
-
     @Test
     void handlesEmailSendingFailureWithoutFailingRegistration() {
 
@@ -176,9 +173,9 @@ class RegistrationWorkflowServiceTest {
 
         String verificationToken = "verification-token";
 
-        when(registrationRateLimitService.isAllowed(
-                "jane@example.com", CLIENT_IP
-        )).thenReturn(true);
+        when(registrationRateLimitService.tryConsume(
+                "jane@example.com", CLIENT_IP))
+                .thenReturn(true);
 
         when(registrationService.register(request))
                 .thenReturn(Optional.of(user));
@@ -194,8 +191,7 @@ class RegistrationWorkflowServiceTest {
                 verificationToken
         );
 
-        // Registration should complete even if email delivery fails.
-        org.assertj.core.api.Assertions.assertThatCode(() ->
+        assertThatCode(() ->
                 registrationWorkflowService.register(request, CLIENT_IP)
         ).doesNotThrowAnyException();
 
@@ -206,15 +202,14 @@ class RegistrationWorkflowServiceTest {
         );
     }
 
-
     @Test
     void doesNotCreateVerificationTokenWhenEmailAlreadyExists() {
 
         RegisterRequest request = request();
 
-        when(registrationRateLimitService.isAllowed(
-                "jane@example.com", CLIENT_IP
-        )).thenReturn(true);
+        when(registrationRateLimitService.tryConsume(
+                "jane@example.com", CLIENT_IP))
+                .thenReturn(true);
 
         when(registrationService.register(request))
                 .thenReturn(Optional.empty());
@@ -222,7 +217,7 @@ class RegistrationWorkflowServiceTest {
         registrationWorkflowService.register(request, CLIENT_IP);
 
         verify(registrationRateLimitService)
-                .recordAttempt("jane@example.com", CLIENT_IP);
+                .tryConsume("jane@example.com", CLIENT_IP);
 
         verify(registrationService).register(request);
 

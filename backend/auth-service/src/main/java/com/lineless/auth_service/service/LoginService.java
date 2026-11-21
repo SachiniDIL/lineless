@@ -42,8 +42,14 @@ public class LoginService {
 
         // 3. Unknown email: record a failed attempt.
         if (user == null) {
-            loginAttemptRateLimitService.recordFailedAttempt(
-                    normalizedEmail, clientIp);
+
+            boolean allowed2 = loginAttemptRateLimitService.recordFailedAttempt(
+                    normalizedEmail, clientIp
+            );
+
+            if (!allowed2) {
+                throw new RateLimitExceededException();
+            }
 
             throw new InvalidCredentialsException();
         }
@@ -53,8 +59,13 @@ public class LoginService {
                 !passwordEncoder.matches(
                         request.password(), user.getPasswordHash())) {
 
-            loginAttemptRateLimitService.recordFailedAttempt(
-                    normalizedEmail, clientIp);
+            boolean allowed3 = loginAttemptRateLimitService.recordFailedAttempt(
+                    normalizedEmail, clientIp
+            );
+
+            if (!allowed3) {
+                throw new RateLimitExceededException();
+            }
 
             throw new InvalidCredentialsException();
         }

@@ -27,32 +27,19 @@ public class PasswordResetRateLimitService {
 
     private final RateLimitService rateLimitService;
 
-    public boolean isAllowed(String email, String clientIp) {
+    public boolean tryConsume(String email, String clientIp) {
 
-        boolean emailAllowed = rateLimitService.isAllowed(
+        boolean emailAllowed = rateLimitService.tryConsume(
                 getEmailKey(email),
                 EMAIL_CAPACITY,
                 EMAIL_REFILL_PERIOD
         );
 
-        boolean ipAllowed = rateLimitService.isAllowed(
-                getIpKey(clientIp),
-                IP_CAPACITY,
-                IP_REFILL_PERIOD
-        );
+        if (!emailAllowed) {
+            return false;
+        }
 
-        return emailAllowed && ipAllowed;
-    }
-
-    public void recordAttempt(String email, String clientIp) {
-
-        rateLimitService.tryConsume(
-                getEmailKey(email),
-                EMAIL_CAPACITY,
-                EMAIL_REFILL_PERIOD
-        );
-
-        rateLimitService.tryConsume(
+        return rateLimitService.tryConsume(
                 getIpKey(clientIp),
                 IP_CAPACITY,
                 IP_REFILL_PERIOD
