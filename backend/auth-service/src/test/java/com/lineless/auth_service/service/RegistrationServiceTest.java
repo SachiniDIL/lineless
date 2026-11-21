@@ -47,7 +47,7 @@ class RegistrationServiceTest {
         when(userRepository.existsByEmail("jane@example.com"))
                 .thenReturn(false);
 
-        when(userRepository.save(any(User.class)))
+        when(userRepository.saveAndFlush(any(User.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         Optional<User> result = registrationService.register(request);
@@ -59,7 +59,7 @@ class RegistrationServiceTest {
         assertThat(user.getName()).isEqualTo("Jane Smith");
         assertThat(user.getEmail()).isEqualTo("jane@example.com");
 
-        verify(userRepository).save(any(User.class));
+        verify(userRepository).saveAndFlush(any(User.class));
     }
 
     @Test
@@ -78,7 +78,7 @@ class RegistrationServiceTest {
 
         assertThat(result).isEmpty();
 
-        verify(userRepository, never()).save(any(User.class));
+        verify(userRepository, never()).saveAndFlush(any(User.class));
     }
 
     @Test
@@ -93,7 +93,7 @@ class RegistrationServiceTest {
         when(userRepository.existsByEmail("jane@example.com"))
                 .thenReturn(false);
 
-        when(userRepository.save(any(User.class)))
+        when(userRepository.saveAndFlush(any(User.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         User user = registrationService.register(request).orElseThrow();
@@ -119,7 +119,7 @@ class RegistrationServiceTest {
         when(userRepository.existsByEmail("jane@example.com"))
                 .thenReturn(false);
 
-        when(userRepository.save(any(User.class)))
+        when(userRepository.saveAndFlush(any(User.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         User user = registrationService.register(request).orElseThrow();
