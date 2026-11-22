@@ -26,7 +26,10 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
             @Param("tokenHash") String tokenHash
     );
 
-    @Modifying
+    @Modifying(
+            clearAutomatically = true,
+            flushAutomatically = true
+    )
     @Query("""
             UPDATE RefreshToken r
             SET r.revokedAt = :revokedAt
@@ -38,7 +41,10 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
             @Param("revokedAt") OffsetDateTime revokedAt
     );
 
-    @Modifying
+    @Modifying(
+            clearAutomatically = true,
+            flushAutomatically = true
+    )
     @Query("""
             UPDATE RefreshToken r
             SET r.revokedAt = :revokedAt

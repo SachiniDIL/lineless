@@ -17,20 +17,23 @@ public interface PasswordResetTokenRepository
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
-                SELECT t
-                FROM PasswordResetToken t
-                WHERE t.tokenHash = :tokenHash
+            SELECT t
+            FROM PasswordResetToken t
+            WHERE t.tokenHash = :tokenHash
             """)
     Optional<PasswordResetToken> findByTokenHashForUpdate(
             @Param("tokenHash") String tokenHash
     );
 
-    @Modifying
+    @Modifying(
+            clearAutomatically = true,
+            flushAutomatically = true
+    )
     @Query("""
-                UPDATE PasswordResetToken t
-                SET t.usedAt = :usedAt
-                WHERE t.user.id = :userId
-                  AND t.usedAt IS NULL
+            UPDATE PasswordResetToken t
+            SET t.usedAt = :usedAt
+            WHERE t.user.id = :userId
+              AND t.usedAt IS NULL
             """)
     int invalidateUnusedTokensByUserId(
             @Param("userId") UUID userId,
