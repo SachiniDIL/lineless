@@ -1,13 +1,10 @@
 package com.lineless.auth_service.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-
-import java.util.Optional;
-import java.util.UUID;
-
+import com.lineless.auth_service.entity.*;
+import com.lineless.auth_service.exception.GoogleAccountLinkingException;
+import com.lineless.auth_service.exception.InvalidCredentialsException;
+import com.lineless.auth_service.repository.UserIdentityRepository;
+import com.lineless.auth_service.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,38 +12,31 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.lineless.auth_service.entity.IdentityProvider;
-import com.lineless.auth_service.entity.User;
-import com.lineless.auth_service.entity.UserIdentity;
-import com.lineless.auth_service.entity.UserRole;
-import com.lineless.auth_service.entity.UserStatus;
-import com.lineless.auth_service.exception.GoogleAccountLinkingException;
-import com.lineless.auth_service.exception.InvalidCredentialsException;
-import com.lineless.auth_service.repository.UserIdentityRepository;
-import com.lineless.auth_service.repository.UserRepository;
-
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class GoogleAuthenticationServiceTest {
-
-    @Mock
-    private GoogleTokenService googleTokenService;
-
-    @Mock
-    private UserRepository userRepository;
-
-    @Mock
-    private UserIdentityRepository userIdentityRepository;
-
-    private GoogleAuthenticationService googleAuthenticationService;
 
     private final GoogleUserInfo googleUser = new GoogleUserInfo(
             "google-sub-123",
             "sachini@example.com",
             "Sachini"
     );
+    @Mock
+    private GoogleTokenService googleTokenService;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private UserIdentityRepository userIdentityRepository;
+    private GoogleAuthenticationService googleAuthenticationService;
 
     @BeforeEach
     void setUp() {
@@ -230,6 +220,26 @@ class GoogleAuthenticationServiceTest {
         assertThat(result.isEmailVerified()).isTrue();
         assertThat(result.getEmailVerifiedAt())
                 .isEqualTo(originalVerificationTime);
+    }
+
+    @Test
+    void shouldRejectLinkingGoogleAccountToInactiveEmailAccount() {
+
+        User inactiveUser = createUser(UserStatus.INACTIVE);
+
+        when(userIdentityRepository.findByProviderAndProviderSubject(
+                IdentityProvider.GOOGLE,
+                "google-sub-123"
+        )).thenReturn(Optional.empty());
+
+        when(userRepository.findByEmail("sachini@example.com"))
+                .thenReturn(Optional.of(inactiveUser));
+
+        assertThatThrownBy(() ->
+                googleAuthenticationService.authenticate("valid-token")
+        ).isInstanceOf(InvalidCredentialsException.class);
+
+        verify(userIdentityRepository, never()).save(any());
     }
 
     private User createUser(UserStatus status) {

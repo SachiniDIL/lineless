@@ -1,23 +1,24 @@
 
 package com.lineless.auth_service.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-
-import java.util.Optional;
-
+import com.lineless.auth_service.dto.request.RegisterRequest;
+import com.lineless.auth_service.entity.User;
+import com.lineless.auth_service.entity.UserRole;
+import com.lineless.auth_service.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-import com.lineless.auth_service.dto.request.RegisterRequest;
-import com.lineless.auth_service.entity.User;
-import com.lineless.auth_service.entity.UserRole;
-import com.lineless.auth_service.repository.UserRepository;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RegistrationServiceTest {
@@ -125,5 +126,79 @@ class RegistrationServiceTest {
         User user = registrationService.register(request).orElseThrow();
 
         assertThat(user.getRole()).isEqualTo(UserRole.USER);
+    }
+
+    @Test
+    void shouldNormalizeEmailBeforeSavingUser() {
+
+        RegisterRequest request = new RegisterRequest(
+                "Jane Smith",
+                "  JANE@EXAMPLE.COM  ",
+                "password123"
+        );
+
+        when(userRepository.existsByEmail("jane@example.com"))
+                .thenReturn(false);
+
+        when(userRepository.saveAndFlush(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        User user = registrationService.register(request).orElseThrow();
+
+        assertThat(user.getEmail()).isEqualTo("jane@example.com");
+
+        verify(userRepository).existsByEmail("jane@example.com");
+    }
+
+    @Test
+    void shouldReturnEmptyWhenEmailIsRegisteredConcurrently() {
+
+        RegisterRequest request = new RegisterRequest(
+                "Jane Smith",
+                "jane@example.com",
+                "password123"
+        );
+
+        when(userRepository.existsByEmail("jane@example.com"))
+                .thenReturn(false, true);
+
+        when(userRepository.saveAndFlush(any(User.class)))
+                .thenThrow(new DataIntegrityViolationException(
+                        "Duplicate email"
+                ));
+
+        Optional<User> result = registrationService.register(request);
+
+        assertThat(result).isEmpty();
+
+        verify(userRepository, times(2))
+                .existsByEmail("jane@example.com");
+
+        verify(userRepository).saveAndFlush(any(User.class));
+    }
+
+    @Test
+    void shouldRethrowWhenDatabaseErrorIsNotCausedByDuplicateEmail() {
+
+        RegisterRequest request = new RegisterRequest(
+                "Jane Smith",
+                "jane@example.com",
+                "password123"
+        );
+
+        DataIntegrityViolationException databaseException =
+                new DataIntegrityViolationException("Unexpected constraint violation");
+
+        when(userRepository.existsByEmail("jane@example.com"))
+                .thenReturn(false, false);
+
+        when(userRepository.saveAndFlush(any(User.class)))
+                .thenThrow(databaseException);
+
+        assertThatThrownBy(() -> registrationService.register(request))
+                .isSameAs(databaseException);
+
+        verify(userRepository, times(2))
+                .existsByEmail("jane@example.com");
     }
 }

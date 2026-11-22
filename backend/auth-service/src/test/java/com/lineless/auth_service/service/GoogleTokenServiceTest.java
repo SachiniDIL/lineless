@@ -1,17 +1,16 @@
 package com.lineless.auth_service.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
+import com.lineless.auth_service.exception.InvalidGoogleTokenException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 
-import com.lineless.auth_service.exception.InvalidGoogleTokenException;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class GoogleTokenServiceTest {
 
@@ -164,6 +163,27 @@ class GoogleTokenServiceTest {
                 )
         ).isInstanceOf(InvalidGoogleTokenException.class)
                 .hasMessage("Invalid Google ID token");
+    }
+
+    @Test
+    void shouldRejectTokenWithMissingSubject() {
+
+        Jwt jwt = createGoogleJwt(
+                true,
+                null,
+                "sachini@example.com",
+                "Sachini"
+        );
+
+        when(googleJwtDecoder.decode("missing-subject-token"))
+                .thenReturn(jwt);
+
+        assertThatThrownBy(() ->
+                googleTokenService.validateAndExtractUserInfo(
+                        "missing-subject-token"
+                )
+        ).isInstanceOf(InvalidGoogleTokenException.class)
+                .hasMessage("Google ID token is missing required user information");
     }
 
     private Jwt createGoogleJwt(

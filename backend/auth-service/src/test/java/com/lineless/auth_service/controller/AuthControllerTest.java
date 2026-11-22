@@ -63,6 +63,9 @@ class AuthControllerTest {
     @MockitoBean
     private ResetPasswordService resetPasswordService;
 
+    @MockitoBean
+    private RegistrationService registrationService;
+
     @Test
     void shouldRegisterUserSuccessfully() throws Exception {
 
@@ -531,6 +534,98 @@ class AuthControllerTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(resetPasswordService);
+    }
+
+    @Test
+    void shouldRejectLoginWithInvalidCredentials() throws Exception {
+
+        when(loginService.login(any(), anyString()))
+                .thenThrow(new InvalidCredentialsException());
+
+        mockMvc.perform(withCsrf(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "email": "test@example.com",
+                                    "password": "WrongPassword123"
+                                }
+                                """)))
+                .andExpect(status().isUnauthorized());
+
+        verify(loginService).login(any(), anyString());
+
+        verifyNoInteractions(jwtService, refreshTokenService);
+    }
+
+    @Test
+    void shouldRejectLoginForInactiveAccount() throws Exception {
+
+        when(loginService.login(any(), anyString()))
+                .thenThrow(new InvalidCredentialsException());
+
+        mockMvc.perform(withCsrf(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "email": "test@example.com",
+                                    "password": "Password123"
+                                }
+                                """)))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(jwtService, refreshTokenService);
+    }
+
+    @Test
+    void shouldRejectLoginWhenEmailIsNotVerified() throws Exception {
+
+        when(loginService.login(any(), anyString()))
+                .thenThrow(new EmailNotVerifiedException());
+
+        mockMvc.perform(withCsrf(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "email": "test@example.com",
+                                    "password": "Password123"
+                                }
+                                """)))
+                .andExpect(status().isForbidden());
+
+        verify(loginService).login(any(), anyString());
+
+        verifyNoInteractions(jwtService, refreshTokenService);
+    }
+
+    @Test
+    void shouldReturnAcceptedWhenRegisteringWithExistingEmail() throws Exception {
+
+        mockMvc.perform(withCsrf(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "name": "Test User",
+                                    "email": "existing@example.com",
+                                    "password": "Password123"
+                                }
+                                """)))
+                .andExpect(status().isAccepted());
+
+        verify(registrationWorkflowService).register(any(), anyString());
+
+        verifyNoInteractions(jwtService, refreshTokenService);
+    }
+
+    @Test
+    void shouldLogoutSuccessfullyWithoutRefreshTokenCookie() throws Exception {
+
+        mockMvc.perform(withCsrf(post("/api/auth/logout")))
+                .andExpect(status().isNoContent());
+
+        verify(refreshTokenService).revokeRefreshToken(null);
+
+        verify(refreshTokenCookieService).clearRefreshTokenCookie(any());
+
     }
 
     private MockHttpServletRequestBuilder withCsrf(
