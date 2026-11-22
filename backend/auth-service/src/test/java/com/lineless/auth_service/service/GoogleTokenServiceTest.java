@@ -186,6 +186,87 @@ class GoogleTokenServiceTest {
                 .hasMessage("Google ID token is missing required user information");
     }
 
+    @Test
+    void shouldRejectTokenWithMissingEmailVerifiedClaim() {
+
+        // Arrange
+        Jwt jwt = Jwt.withTokenValue("test-token")
+                .header("alg", "RS256")
+                .subject("google-sub-123")
+                .claim("email", "sachini@example.com")
+                .claim("name", "Sachini")
+                // Intentionally no email_verified claim
+                .build();
+
+        when(googleJwtDecoder.decode("missing-email-verified-token"))
+                .thenReturn(jwt);
+
+        // Act & Assert
+        assertThatThrownBy(() ->
+                googleTokenService.validateAndExtractUserInfo(
+                        "missing-email-verified-token"
+                )
+        ).isInstanceOf(InvalidGoogleTokenException.class)
+                .hasMessage("Google email is not verified");
+    }
+
+    @Test
+    void shouldRejectTokenWithBlankSubject() {
+
+        Jwt jwt = createGoogleJwt(
+                true,
+                "   ",
+                "sachini@example.com",
+                "Sachini"
+        );
+
+        when(googleJwtDecoder.decode("blank-subject-token"))
+                .thenReturn(jwt);
+
+        assertThatThrownBy(() ->
+                googleTokenService.validateAndExtractUserInfo("blank-subject-token")
+        ).isInstanceOf(InvalidGoogleTokenException.class)
+                .hasMessage("Google ID token is missing required user information");
+    }
+
+    @Test
+    void shouldRejectTokenWithBlankEmail() {
+
+        Jwt jwt = createGoogleJwt(
+                true,
+                "google-sub-123",
+                "   ",
+                "Sachini"
+        );
+
+        when(googleJwtDecoder.decode("blank-email-token"))
+                .thenReturn(jwt);
+
+        assertThatThrownBy(() ->
+                googleTokenService.validateAndExtractUserInfo("blank-email-token")
+        ).isInstanceOf(InvalidGoogleTokenException.class)
+                .hasMessage("Google ID token is missing required user information");
+    }
+
+    @Test
+    void shouldRejectTokenWithBlankName() {
+
+        Jwt jwt = createGoogleJwt(
+                true,
+                "google-sub-123",
+                "sachini@example.com",
+                "   "
+        );
+
+        when(googleJwtDecoder.decode("blank-name-token"))
+                .thenReturn(jwt);
+
+        assertThatThrownBy(() ->
+                googleTokenService.validateAndExtractUserInfo("blank-name-token")
+        ).isInstanceOf(InvalidGoogleTokenException.class)
+                .hasMessage("Google ID token is missing required user information");
+    }
+
     private Jwt createGoogleJwt(
             boolean emailVerified,
             String subject,

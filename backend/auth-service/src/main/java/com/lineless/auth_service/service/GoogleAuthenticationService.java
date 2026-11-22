@@ -1,23 +1,19 @@
+
 package com.lineless.auth_service.service;
 
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.Locale;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import com.lineless.auth_service.entity.IdentityProvider;
-import com.lineless.auth_service.entity.User;
-import com.lineless.auth_service.entity.UserIdentity;
-import com.lineless.auth_service.entity.UserRole;
-import com.lineless.auth_service.entity.UserStatus;
+import com.lineless.auth_service.entity.*;
 import com.lineless.auth_service.exception.GoogleAccountLinkingException;
 import com.lineless.auth_service.exception.InvalidCredentialsException;
 import com.lineless.auth_service.repository.UserIdentityRepository;
 import com.lineless.auth_service.repository.UserRepository;
-
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -30,11 +26,10 @@ public class GoogleAuthenticationService {
     @Transactional
     public User authenticate(String idToken) {
 
-        // Step 1: Verify Google's ID token.
         GoogleUserInfo googleUser =
                 googleTokenService.validateAndExtractUserInfo(idToken);
 
-        // Step 2: Look for an already-linked Google identity.
+        // First, check whether this Google identity is already linked.
         var existingIdentity = userIdentityRepository
                 .findByProviderAndProviderSubject(
                         IdentityProvider.GOOGLE,
@@ -42,34 +37,63 @@ public class GoogleAuthenticationService {
                 );
 
         if (existingIdentity.isPresent()) {
-
             User user = existingIdentity.get().getUser();
 
             if (user.getStatus() != UserStatus.ACTIVE) {
                 throw new InvalidCredentialsException();
             }
 
-            markEmailAsVerified(user);
+            String googleEmail = normalizeEmail(googleUser.email());
+            String accountEmail = normalizeEmail(user.getEmail());
+
+            if (googleEmail.equals(accountEmail)) {
+                markEmailAsVerified(user);
+            }
 
             return user;
         }
 
-        // Step 3: Look for an existing LineLess account by verified email.
-        String normalizedEmail = googleUser.email()
-                .trim()
-                .toLowerCase(Locale.ROOT);
+        // Find the LineLess account using Google's verified email.
+        String normalizedEmail = normalizeEmail(googleUser.email());
 
         User user = userRepository.findByEmail(normalizedEmail)
                 .orElseGet(() -> createGoogleUser(googleUser, normalizedEmail));
+
+        // Lock the existing account before checking or creating its identity.
+        user = userRepository.findByIdForUpdate(user.getId())
+                .orElseThrow(InvalidCredentialsException::new);
 
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new InvalidCredentialsException();
         }
 
-        // Step 4: Mark the Google-verified email as verified.
-        markEmailAsVerified(user);
+        // Recheck the Google subject after acquiring the lock.
+        var linkedIdentity = userIdentityRepository
+                .findByProviderAndProviderSubject(
+                        IdentityProvider.GOOGLE,
+                        googleUser.googleSubject()
+                );
 
-        // Step 5: Prevent replacing an already-linked Google identity.
+        if (linkedIdentity.isPresent()) {
+            User linkedUser = linkedIdentity.get().getUser();
+
+            if (!linkedUser.getId().equals(user.getId())) {
+                throw new GoogleAccountLinkingException(
+                        "This Google account is already linked to another account"
+                );
+            }
+
+            String googleEmail = normalizeEmail(googleUser.email());
+            String accountEmail = normalizeEmail(linkedUser.getEmail());
+
+            if (googleEmail.equals(accountEmail)) {
+                markEmailAsVerified(linkedUser);
+            }
+
+            return linkedUser;
+        }
+
+        // Check whether another Google account is already linked.
         boolean alreadyHasGoogleIdentity =
                 userIdentityRepository.existsByUser_IdAndProvider(
                         user.getId(),
@@ -82,7 +106,8 @@ public class GoogleAuthenticationService {
             );
         }
 
-        // Step 6: Link this Google identity to the LineLess user.
+        markEmailAsVerified(user);
+
         linkGoogleIdentity(user, googleUser.googleSubject());
 
         return user;
@@ -105,9 +130,11 @@ public class GoogleAuthenticationService {
         return userRepository.save(user);
     }
 
-    private void markEmailAsVerified(User user) {
+    private String normalizeEmail(String email) {
+        return email.trim().toLowerCase(Locale.ROOT);
+    }
 
-        // Preserve the original verification timestamp.
+    private void markEmailAsVerified(User user) {
         if (!user.isEmailVerified()) {
             user.setEmailVerified(true);
             user.setEmailVerifiedAt(OffsetDateTime.now(ZoneOffset.UTC));
@@ -122,6 +149,12 @@ public class GoogleAuthenticationService {
         identity.setProvider(IdentityProvider.GOOGLE);
         identity.setProviderSubject(googleSubject);
 
-        userIdentityRepository.save(identity);
+        try {
+            userIdentityRepository.saveAndFlush(identity);
+        } catch (DataIntegrityViolationException exception) {
+            throw new GoogleAccountLinkingException(
+                    "This Google account could not be linked to the account"
+            );
+        }
     }
 }

@@ -1,11 +1,12 @@
 package com.lineless.auth_service.service;
 
+import com.lineless.auth_service.exception.InvalidGoogleTokenException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.stereotype.Service;
 
-import com.lineless.auth_service.exception.InvalidGoogleTokenException;
+import java.util.Locale;
 
 @Service
 public class GoogleTokenService {
@@ -46,7 +47,7 @@ public class GoogleTokenService {
 
             return new GoogleUserInfo(
                     googleSubject,
-                    email.trim().toLowerCase(),
+                    email.trim().toLowerCase(Locale.ROOT),
                     name.trim()
             );
 

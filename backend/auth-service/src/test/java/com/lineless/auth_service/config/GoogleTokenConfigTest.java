@@ -146,14 +146,43 @@ class GoogleTokenConfigTest {
                 .isInstanceOf(JwtException.class);
     }
 
+    @Test
+    void shouldRejectTokenWithWrongIssuer() throws Exception {
+
+        String token = createToken(
+                googleKeyPair,
+                CLIENT_ID,
+                Instant.now().plusSeconds(300),
+                "https://malicious-issuer.com"
+        );
+
+        assertThatThrownBy(() -> decoder.decode(token))
+                .isInstanceOf(JwtException.class);
+    }
+
     private String createToken(
             KeyPair signingKeyPair,
             String audience,
             Instant expiration
     ) throws Exception {
 
+        return createToken(
+                signingKeyPair,
+                audience,
+                expiration,
+                ISSUER
+        );
+    }
+
+    private String createToken(
+            KeyPair signingKeyPair,
+            String audience,
+            Instant expiration,
+            String issuer
+    ) throws Exception {
+
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
-                .issuer(ISSUER)
+                .issuer(issuer)
                 .subject("google-user-123")
                 .audience(audience)
                 .issueTime(Date.from(Instant.now()))
