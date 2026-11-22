@@ -17,7 +17,7 @@ public class Bucket4jConfig {
             StatefulRedisConnection<String, byte[]> redisConnection) {
 
         return Bucket4jLettuce.casBasedBuilder(redisConnection)
-                .maxRetries(5)
+                .maxRetries(50)
                 .requestTimeout(Duration.ofSeconds(2))
                 .expirationAfterWrite(
                         ExpirationAfterWriteStrategy

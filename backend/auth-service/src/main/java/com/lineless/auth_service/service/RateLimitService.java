@@ -3,6 +3,7 @@ package com.lineless.auth_service.service;
 import com.lineless.auth_service.exception.RateLimitInfrastructureException;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.BucketConfiguration;
+import io.github.bucket4j.BucketExceptions;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import io.lettuce.core.RedisException;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +24,7 @@ public class RateLimitService {
 
         try {
             return getBucket(key, capacity, refillPeriod).tryConsume(1);
-        } catch (RedisException exception) {
+        } catch (RedisException | BucketExceptions.BucketExecutionException exception) {
             throw new RateLimitInfrastructureException(exception);
         }
     }
@@ -36,7 +37,7 @@ public class RateLimitService {
         try {
             return getBucket(key, capacity, refillPeriod)
                     .getAvailableTokens() > 0;
-        } catch (RedisException exception) {
+        } catch (RedisException | BucketExceptions.BucketExecutionException exception) {
             throw new RateLimitInfrastructureException(exception);
         }
     }
@@ -48,7 +49,7 @@ public class RateLimitService {
 
         try {
             getBucket(key, capacity, refillPeriod).reset();
-        } catch (RedisException exception) {
+        } catch (RedisException | BucketExceptions.BucketExecutionException exception) {
             throw new RateLimitInfrastructureException(exception);
         }
     }
