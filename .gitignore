@@ -3,6 +3,7 @@
 .env
 .env.*
 !.env.example
+infrastructure/secrets/*
 
 # JWT keys and certificates
 *.pem
