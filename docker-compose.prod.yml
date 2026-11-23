@@ -90,6 +90,9 @@ services:
 
     restart: unless-stopped
 
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
   notification-service:
     ports: []
 
