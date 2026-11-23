@@ -193,6 +193,24 @@ class SecurityConfigTest {
                 .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
     }
 
+    @Test
+    void shouldAllowHealthProbeEndpointsWithoutToken() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/actuator/health/liveness"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/actuator/health/readiness"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldProtectDetailedHealthEndpoints() throws Exception {
+        mockMvc.perform(get("/actuator/health/db"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/actuator/health/redis"))
+                .andExpect(status().isUnauthorized());
+    }
+
     @TestConfiguration
     static class TestControllerConfig {
 

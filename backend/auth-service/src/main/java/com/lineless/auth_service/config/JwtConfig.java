@@ -6,7 +6,10 @@ import java.security.interfaces.RSAPublicKey;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.core.io.DefaultResourceLoader;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.security.converter.RsaKeyConverters;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
@@ -24,23 +27,51 @@ import com.nimbusds.jose.proc.SecurityContext;
 public class JwtConfig {
 
     @Value("${app.jwt.private-key-location}")
-    private Resource privateKeyResource;
+    private String privateKeyLocation;
 
     @Value("${app.jwt.public-key-location}")
-    private Resource publicKeyResource;
+    private String publicKeyLocation;
+
+    private final ResourceLoader resourceLoader;
+
+    public JwtConfig() {
+        this.resourceLoader = new DefaultResourceLoader();
+    }
+
+    public JwtConfig(ResourceLoader resourceLoader) {
+        this.resourceLoader = resourceLoader;
+    }
 
     @Bean
     public RSAPrivateKey rsaPrivateKey() throws Exception {
-        try (var inputStream = privateKeyResource.getInputStream()) {
+        Resource resource = resolveKeyResource(privateKeyLocation);
+        try (var inputStream = resource.getInputStream()) {
             return RsaKeyConverters.pkcs8().convert(inputStream);
         }
     }
 
     @Bean
     public RSAPublicKey rsaPublicKey() throws Exception {
-        try (var inputStream = publicKeyResource.getInputStream()) {
+        Resource resource = resolveKeyResource(publicKeyLocation);
+        try (var inputStream = resource.getInputStream()) {
             return RsaKeyConverters.x509().convert(inputStream);
         }
+    }
+
+    private Resource resolveKeyResource(String location) {
+        if (location == null || location.isBlank()) {
+            throw new IllegalStateException("JWT key location must be configured");
+        }
+
+        if (location.startsWith("file:")
+                || location.startsWith("classpath:")
+                || location.startsWith("/")) {
+            return resourceLoader.getResource(location.startsWith("/")
+                    ? "file:" + location
+                    : location);
+        }
+
+        return new FileSystemResource(location);
     }
 
     @Bean
