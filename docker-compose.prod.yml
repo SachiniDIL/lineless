@@ -43,6 +43,48 @@ services:
 
     restart: unless-stopped
 
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/auth_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?Production database user required}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Production database password required}
+
+      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH:-/run/secrets/jwt-private.pem}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH:-/run/secrets/jwt-public.pem}
+      JWT_ISSUER: ${JWT_ISSUER:?Production JWT issuer required}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?Production JWT audience required}
+      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION:-900}
+      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION:-604800}
+
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Production Google OAuth client ID required}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?Production Google OAuth client secret required}
+
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:?Production Redis password required}
+
+      GOOGLE_JWK_SET_URI: ${GOOGLE_JWK_SET_URI:-https://www.googleapis.com/oauth2/v3/certs}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:?Production CORS origin required}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?Production frontend base URL required}
+      REFRESH_COOKIE_NAME: ${REFRESH_COOKIE_NAME:-lineless_refresh}
+      REFRESH_COOKIE_SAME_SITE: ${REFRESH_COOKIE_SAME_SITE:-Lax}
+
+      ADMIN_BOOTSTRAP_ENABLED: ${ADMIN_BOOTSTRAP_ENABLED:-false}
+      ADMIN_BOOTSTRAP_NAME: ${ADMIN_BOOTSTRAP_NAME:-}
+      ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
+
+      MAIL_HOST: ${MAIL_HOST:?Production mail host required}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:?Production mail username required}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:?Production mail password required}
+      MAIL_FROM: ${MAIL_FROM:?Production mail sender required}
+
+    volumes:
+      - ./infrastructure/secrets/jwt-private.pem:/run/secrets/jwt-private.pem:ro
+      - ./infrastructure/secrets/jwt-public.pem:/run/secrets/jwt-public.pem:ro
+
   queue-service:
     ports: []
 
