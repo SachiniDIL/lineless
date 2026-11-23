@@ -13,4 +13,6 @@ public interface QueueSessionRepository extends JpaRepository<QueueSession, UUID
     Optional<QueueSession> findByQueueIdAndSessionDate(UUID queueId, LocalDate sessionDate);
 
     List<QueueSession> findByQueueIdOrderBySessionDateAsc(UUID queueId);
+
+    boolean existsByQueueId(UUID queueId);
 }

@@ -13,4 +13,8 @@ public interface QueueRepository extends JpaRepository<Queue, UUID> {
     List<Queue> findByBusinessIdAndIsActiveTrue(UUID businessId);
 
     boolean existsByBusinessId(UUID businessId);
+
+    boolean existsByBusinessIdAndName(UUID businessId, String name);
+
+    boolean existsByBusinessIdAndNameAndIdNot(UUID businessId, String name, UUID queueId);
 }
