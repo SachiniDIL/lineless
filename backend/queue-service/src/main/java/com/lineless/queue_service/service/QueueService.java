@@ -75,7 +75,7 @@ public class QueueService {
         validateOwner(actingOwnerUserId);
         validateQueueDetails(name, ticketPrefix, maxCapacity, averageServiceTimeMinutes);
 
-        Queue queue = findManagedQueue(queueId, actingOwnerUserId);
+        Queue queue = findManagedQueueForUpdate(queueId, actingOwnerUserId);
         String normalizedName = name.trim();
         UUID businessId = queue.getBusiness().getId();
 
@@ -124,21 +124,21 @@ public class QueueService {
 
     @Transactional
     public Queue activateQueue(UUID queueId, UUID actingOwnerUserId) {
-        Queue queue = findManagedQueue(queueId, actingOwnerUserId);
+        Queue queue = findManagedQueueForUpdate(queueId, actingOwnerUserId);
         queue.setActive(true);
         return queueRepository.save(queue);
     }
 
     @Transactional
     public Queue deactivateQueue(UUID queueId, UUID actingOwnerUserId) {
-        Queue queue = findManagedQueue(queueId, actingOwnerUserId);
+        Queue queue = findManagedQueueForUpdate(queueId, actingOwnerUserId);
         queue.setActive(false);
         return queueRepository.save(queue);
     }
 
     @Transactional
     public void deleteQueue(UUID queueId, UUID actingOwnerUserId) {
-        Queue queue = findManagedQueue(queueId, actingOwnerUserId);
+        Queue queue = findManagedQueueForUpdate(queueId, actingOwnerUserId);
 
         if (queueSessionRepository.existsByQueueId(queueId)) {
             throw new QueueInUseException(queueId);
@@ -150,6 +150,21 @@ public class QueueService {
     private Queue findManagedQueue(UUID queueId, UUID actingOwnerUserId) {
         validateOwner(actingOwnerUserId);
         Queue queue = queueRepository.findById(requireId(queueId, "queue ID"))
+                .orElseThrow(() -> new QueueNotFoundException(queueId));
+
+        Business business = queue.getBusiness();
+        if (!business.getOwnerUserId().equals(actingOwnerUserId)) {
+            throw new QueueAccessDeniedException(queueId);
+        }
+
+        return queue;
+    }
+
+    private Queue findManagedQueueForUpdate(UUID queueId, UUID actingOwnerUserId) {
+        validateOwner(actingOwnerUserId);
+        Queue queue = queueRepository.findByIdForUpdate(
+                        requireId(queueId, "queue ID")
+                )
                 .orElseThrow(() -> new QueueNotFoundException(queueId));
 
         Business business = queue.getBusiness();

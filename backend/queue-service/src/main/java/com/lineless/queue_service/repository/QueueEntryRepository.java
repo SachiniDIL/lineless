@@ -24,6 +24,11 @@ public interface QueueEntryRepository extends JpaRepository<QueueEntry, UUID> {
             Collection<QueueEntryStatus> statuses
     );
 
+    List<QueueEntry> findBySessionIdAndStatusIn(
+            UUID sessionId,
+            Collection<QueueEntryStatus> statuses
+    );
+
     Optional<QueueEntry> findFirstBySessionIdAndStatusOrderByTicketNumberAsc(
             UUID sessionId,
             QueueEntryStatus status

@@ -93,7 +93,7 @@ class QueueServiceTest {
         Queue queue = createQueue(ownerId, business, "Old Queue");
         queue.setId(queueId);
 
-        when(queueRepository.findById(queueId))
+        when(queueRepository.findByIdForUpdate(queueId))
                 .thenReturn(Optional.of(queue));
         when(queueRepository.existsByBusinessIdAndNameAndIdNot(
                 businessId,
@@ -132,7 +132,7 @@ class QueueServiceTest {
         Queue queue = createQueue(ownerId, business, "Queue");
         queue.setId(queueId);
 
-        when(queueRepository.findById(queueId))
+        when(queueRepository.findByIdForUpdate(queueId))
                 .thenReturn(Optional.of(queue));
 
         assertThatThrownBy(() ->
@@ -160,7 +160,7 @@ class QueueServiceTest {
         Queue existing = createQueue(ownerId, business, "Main");
         existing.setId(queueId);
 
-        when(queueRepository.findById(queueId))
+        when(queueRepository.findByIdForUpdate(queueId))
                 .thenReturn(Optional.of(existing));
         when(queueRepository.existsByBusinessIdAndNameAndIdNot(
                 businessId,
@@ -252,7 +252,7 @@ class QueueServiceTest {
         queue.setId(queueId);
         queue.setActive(false);
 
-        when(queueRepository.findById(queueId))
+        when(queueRepository.findByIdForUpdate(queueId))
                 .thenReturn(Optional.of(queue));
         when(queueRepository.save(queue))
                 .thenReturn(queue);
@@ -273,7 +273,7 @@ class QueueServiceTest {
         Queue queue = createQueue(ownerId, business, "Queue");
         queue.setId(queueId);
 
-        when(queueRepository.findById(queueId))
+        when(queueRepository.findByIdForUpdate(queueId))
                 .thenReturn(Optional.of(queue));
         when(queueSessionRepository.existsByQueueId(queueId))
                 .thenReturn(true);
@@ -294,7 +294,7 @@ class QueueServiceTest {
         Queue queue = createQueue(ownerId, business, "Queue");
         queue.setId(queueId);
 
-        when(queueRepository.findById(queueId))
+        when(queueRepository.findByIdForUpdate(queueId))
                 .thenReturn(Optional.of(queue));
         when(queueSessionRepository.existsByQueueId(queueId))
                 .thenReturn(false);
