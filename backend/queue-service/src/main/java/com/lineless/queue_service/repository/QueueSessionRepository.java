@@ -10,6 +10,8 @@ import java.util.UUID;
 
 public interface QueueSessionRepository extends JpaRepository<QueueSession, UUID> {
 
+    List<QueueSession> findByQueueId(UUID queueId);
+
     Optional<QueueSession> findByQueueIdAndSessionDate(UUID queueId, LocalDate sessionDate);
 
     List<QueueSession> findByQueueIdOrderBySessionDateAsc(UUID queueId);

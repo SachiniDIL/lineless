@@ -6,5 +6,6 @@ public enum QueueOperationType {
     RECALLED,
     SKIPPED,
     COMPLETED,
-    LEFT
+    LEFT,
+    CANCELLED
 }

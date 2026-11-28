@@ -5,5 +5,6 @@ public enum QueueEntryStatus {
     CALLED,
     COMPLETED,
     SKIPPED,
-    LEFT
+    LEFT,
+    CANCELLED
 }

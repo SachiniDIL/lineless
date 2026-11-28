@@ -54,6 +54,15 @@ public class QueueSession {
     @Column(name = "next_ticket_number", nullable = false)
     private int nextTicketNumber = 1;
 
+    @Column(name = "capacity", nullable = false)
+    private int capacity;
+
+    @Column(name = "scheduled_start_at", nullable = false)
+    private Instant scheduledStartAt;
+
+    @Column(name = "cancellation_reason")
+    private String cancellationReason;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
